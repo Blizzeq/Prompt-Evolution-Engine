@@ -17,15 +17,15 @@ Define a task, provide test cases, and let evolution find the best prompt.
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 16, React 19, TypeScript |
-| Styling | Tailwind CSS 4, shadcn/ui v4 |
-| Database | SQLite (better-sqlite3) + Drizzle ORM |
-| State | Zustand 5 |
-| Charts | Recharts |
-| AI Providers | Ollama, Google AI Studio, OpenRouter |
-| Validation | Zod |
+| Layer        | Technology                            |
+| ------------ | ------------------------------------- |
+| Framework    | Next.js 16, React 19, TypeScript      |
+| Styling      | Tailwind CSS 4, shadcn/ui v4          |
+| Database     | SQLite (better-sqlite3) + Drizzle ORM |
+| State        | Zustand 5                             |
+| Charts       | Recharts                              |
+| AI Providers | Ollama, Google AI Studio, OpenRouter  |
+| Validation   | Zod                                   |
 
 ## Quick Start
 
@@ -49,7 +49,6 @@ pnpm install
 cp .env.local.example .env.local
 
 # Initialize the database
-pnpm drizzle-kit generate
 pnpm drizzle-kit migrate
 
 # Start development server
@@ -57,6 +56,12 @@ pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+### Security Defaults
+
+- Remote access is enabled unless you set `ALLOW_REMOTE_ACCESS=false`.
+- If you expose the app publicly, add your own auth layer first.
+- Remote Ollama hosts must also be allowlisted via `OLLAMA_ALLOWED_HOSTS`.
 
 ### Using Ollama
 
@@ -75,6 +80,12 @@ Set `GOOGLE_AI_API_KEY` in `.env.local` with your API key from [Google AI Studio
 ### Using OpenRouter
 
 Set `OPENROUTER_API_KEY` in `.env.local` with your API key from [OpenRouter](https://openrouter.ai).
+
+## Testing
+
+```bash
+pnpm test
+```
 
 ## How It Works
 
@@ -114,15 +125,15 @@ src/
 
 ## API Routes
 
-| Method | Route | Description |
-|--------|-------|-------------|
-| `POST` | `/api/evolution/start` | Start a new evolution run |
-| `GET` | `/api/evolution/[id]` | Get full run state |
-| `DELETE` | `/api/evolution/[id]` | Delete a run |
-| `POST` | `/api/evolution/[id]/stop` | Stop a running evolution |
-| `GET` | `/api/evolution/[id]/stream` | SSE stream of evolution events |
-| `GET` | `/api/runs` | List all runs |
-| `GET` | `/api/health` | Provider health check |
+| Method   | Route                        | Description                    |
+| -------- | ---------------------------- | ------------------------------ |
+| `POST`   | `/api/evolution/start`       | Start a new evolution run      |
+| `GET`    | `/api/evolution/[id]`        | Get full run state             |
+| `DELETE` | `/api/evolution/[id]`        | Delete a run                   |
+| `POST`   | `/api/evolution/[id]/stop`   | Stop a running evolution       |
+| `GET`    | `/api/evolution/[id]/stream` | SSE stream of evolution events |
+| `GET`    | `/api/runs`                  | List all runs                  |
+| `GET`    | `/api/health`                | Provider health check          |
 
 ## License
 

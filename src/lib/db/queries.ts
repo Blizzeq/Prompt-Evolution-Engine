@@ -7,8 +7,22 @@ import type { EvolutionConfig, PromptOrigin, PromptMetadata, RunStatus, StopReas
 // Evolution Runs
 // ═══════════════════════════════════════════
 
-export function createRun(taskDescription: string, config: EvolutionConfig) {
-  const rows = db.insert(evolutionRuns).values({ taskDescription, config }).returning().all();
+export function createRun(
+  taskDescription: string,
+  config: EvolutionConfig,
+  userPrompt?: string,
+  status: RunStatus = "pending",
+) {
+  const rows = db
+    .insert(evolutionRuns)
+    .values({
+      taskDescription,
+      config,
+      userPrompt: userPrompt ?? null,
+      status,
+    })
+    .returning()
+    .all();
   return rows[0];
 }
 

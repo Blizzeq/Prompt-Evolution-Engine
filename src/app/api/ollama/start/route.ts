@@ -1,9 +1,26 @@
 import { NextResponse } from "next/server";
 import { exec } from "child_process";
+import {
+  enforceRouteRateLimit,
+  requireTrustedLocalRequest,
+} from "@/lib/utils/request-security";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
+export async function POST(request: Request) {
+  const accessError = requireTrustedLocalRequest(request, "Ollama start");
+  if (accessError) {
+    return accessError;
+  }
+
+  const rateLimitError = enforceRouteRateLimit(request, "ollama-start", {
+    limit: 5,
+    windowMs: 60_000,
+  });
+  if (rateLimitError) {
+    return rateLimitError;
+  }
+
   // Check if ollama binary exists
   const ollamaExists = await new Promise<boolean>((resolve) => {
     exec("which ollama", (err) => resolve(!err));

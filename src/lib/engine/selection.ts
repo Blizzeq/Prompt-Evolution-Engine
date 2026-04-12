@@ -9,6 +9,10 @@ export function tournamentSelect(
   count: number,
   tournamentSize = 3,
 ): Prompt[] {
+  if (population.length === 0) {
+    throw new Error("Cannot select from an empty population");
+  }
+
   const size = Math.min(tournamentSize, population.length);
   const selected: Prompt[] = [];
 

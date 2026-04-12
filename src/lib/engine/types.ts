@@ -11,21 +11,50 @@ export interface EvolutionConfig {
   eliteCount: number;           // 1–4, default: 2
   eaVariant: "ga" | "de";
   evalMethod: EvalMethod;
-  modelId: GemmaModelId;
+  modelId: ModelId;
   provider: "ollama" | "google-ai-studio" | "openrouter";
   crossoverStrategy: CrossoverStrategy;
   mutationStrategies: MutationType[];
-  fitnessThreshold: number;     // min fitness to survive, default: 0.1
+  fitnessThreshold: number;     // target fitness for early stop, default: 0.99
   earlyStopGenerations: number; // stop if no improvement for N gens, default: 3
   batchTestCases: boolean;      // batch test cases in one LLM call, default: true
+  combinedEval: boolean;        // combined simulate+judge in 1 call per prompt, default: false
   delayBetweenCalls: number;    // ms delay between API calls, default: 500
   ollamaComputeMode: OllamaComputeMode;  // CPU/GPU selection for Ollama
   ollamaNumGpuLayers: number;   // custom GPU layers for hybrid mode (-1=all, 0=none)
 }
 
-export type GemmaModelId =
-  | "gemma4"                // Gemma 4 default (MoE, recommended)
-  | "gemma4:27b";           // Gemma 4 27B (larger variant)
+// Flexible model identifier — any model supported by the chosen provider
+export type ModelId = string;
+
+// Well-known model presets per provider (for UI dropdowns)
+export const MODEL_PRESETS = {
+  ollama: [
+    { id: "gemma4", label: "Gemma 4 (recommended)", description: "Google Gemma 4 MoE" },
+    { id: "gemma4:27b", label: "Gemma 4 27B", description: "Larger Gemma variant" },
+    { id: "gemma3", label: "Gemma 3", description: "Google Gemma 3" },
+    { id: "llama3.1", label: "Llama 3.1 8B", description: "Meta Llama 3.1" },
+    { id: "mistral", label: "Mistral 7B", description: "Mistral AI" },
+    { id: "phi4", label: "Phi 4", description: "Microsoft Phi 4" },
+    { id: "qwen3", label: "Qwen 3", description: "Alibaba Qwen 3" },
+  ],
+  "google-ai-studio": [
+    { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash (recommended)", description: "Fast, free tier, thinking model" },
+    { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro", description: "Most capable, thinking model" },
+    { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash", description: "Previous gen, fast" },
+    { id: "gemini-2.0-flash-lite", label: "Gemini 2.0 Flash Lite", description: "Lightweight, fastest" },
+    { id: "gemma-3-27b-it", label: "Gemma 3 27B", description: "Open model, 27B params" },
+    { id: "gemma-3-12b-it", label: "Gemma 3 12B", description: "Open model, 12B params" },
+    { id: "gemma-3-4b-it", label: "Gemma 3 4B", description: "Open model, compact" },
+  ],
+  openrouter: [
+    { id: "google/gemma-4-26b-a4b-it:free", label: "Gemma 4 26B (free)", description: "Google, free tier" },
+    { id: "google/gemma-3-27b-it:free", label: "Gemma 3 27B (free)", description: "Google, free tier" },
+    { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", description: "Google, paid" },
+    { id: "meta-llama/llama-4-maverick:free", label: "Llama 4 Maverick (free)", description: "Meta, free tier" },
+    { id: "deepseek/deepseek-chat-v3-0324:free", label: "DeepSeek V3 (free)", description: "DeepSeek, free tier" },
+  ],
+} as const;
 
 export type OllamaComputeMode =
   | "auto"                  // Let Ollama decide (GPU if available, else CPU)

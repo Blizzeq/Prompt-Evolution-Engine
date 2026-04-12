@@ -11,24 +11,11 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Users } from "lucide-react";
-import type { GenerationSummary, Prompt } from "@/lib/engine/types";
+import type { GenerationSummary } from "@/lib/engine/types";
 
 interface PopulationTableProps {
   generationSummaries: GenerationSummary[];
   currentGeneration: number;
-}
-
-function originLabel(origin: Prompt["origin"]): string {
-  switch (origin.type) {
-    case "seed":
-      return origin.source === "user" ? "User seed" : "Generated";
-    case "crossover":
-      return `Crossover (${origin.strategy})`;
-    case "mutation":
-      return `Mutation (${origin.mutationType})`;
-    case "elite":
-      return "Elite";
-  }
 }
 
 export function PopulationTable({

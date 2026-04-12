@@ -1,11 +1,31 @@
 import { NextResponse } from "next/server";
+import {
+  enforceRouteRateLimit,
+  normalizeOllamaBaseUrl,
+  requireTrustedLocalRequest,
+} from "@/lib/utils/request-security";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const accessError = requireTrustedLocalRequest(request, "Ollama pull");
+  if (accessError) {
+    return accessError;
+  }
+
+  const rateLimitError = enforceRouteRateLimit(request, "ollama-pull", {
+    limit: 3,
+    windowMs: 5 * 60_000,
+  });
+  if (rateLimitError) {
+    return rateLimitError;
+  }
+
   const body = await request.json().catch(() => ({}));
   const model = body.model ?? "gemma4:26b-a4b";
-  const baseUrl = body.baseUrl ?? "http://localhost:11434";
+  const baseUrl = normalizeOllamaBaseUrl(
+    body.baseUrl ?? "http://localhost:11434",
+  );
 
   // Check Ollama is running
   try {

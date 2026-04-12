@@ -8,6 +8,13 @@
       "when": 1775941291772,
       "tag": "0000_careless_hellion",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1776012192971,
+      "tag": "0001_wild_blue_shield",
+      "breakpoints": true
     }
   ]
 }

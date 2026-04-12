@@ -25,7 +25,9 @@ import {
   Clock,
   Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 import type { RunStatus } from "@/lib/engine/types";
+import { parseDbDate } from "@/lib/utils/dates";
 
 interface RunRow {
   id: string;
@@ -79,7 +81,7 @@ function statusBadge(status: RunStatus) {
 }
 
 function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
+  const d = new Date(parseDbDate(dateStr));
   return d.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -114,8 +116,16 @@ export default function HistoryPage() {
   const handleDelete = async (id: string) => {
     setDeleting(id);
     try {
-      await fetch(`/api/evolution/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/evolution/${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to delete run");
+        return;
+      }
+
       setRuns((prev) => prev.filter((r) => r.id !== id));
+      toast.success("Run deleted");
     } finally {
       setDeleting(null);
     }
@@ -220,7 +230,11 @@ export default function HistoryPage() {
                           size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-destructive"
                           onClick={() => handleDelete(run.id)}
-                          disabled={deleting === run.id}
+                          disabled={
+                            deleting === run.id ||
+                            ["pending", "initializing", "running"].includes(run.status)
+                          }
+                          aria-label={`Delete run ${run.id}`}
                         >
                           {deleting === run.id ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />

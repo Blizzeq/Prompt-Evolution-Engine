@@ -10,10 +10,12 @@ import { FitnessChart } from "@/components/dashboard/fitness-chart";
 import { PopulationTable } from "@/components/dashboard/population-table";
 import { GenealogyDag } from "@/components/dashboard/genealogy-dag";
 import { RunResults } from "@/components/dashboard/run-results";
+import { OriginalPrompt } from "@/components/dashboard/original-prompt";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plus } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Plus, WifiOff } from "lucide-react";
 import Link from "next/link";
 
 export default function RunPage({
@@ -34,6 +36,10 @@ export default function RunPage({
   const generationSummaries = useEvolutionStore((s) => s.generationSummaries);
   const bestPrompt = useEvolutionStore((s) => s.bestPrompt);
   const summary = useEvolutionStore((s) => s.summary);
+  const userPrompt = useEvolutionStore((s) => s.userPrompt);
+  const taskDescription = useEvolutionStore((s) => s.taskDescription);
+  const loadState = useEvolutionStore((s) => s.loadState);
+  const connectionStatus = useEvolutionStore((s) => s.connectionStatus);
 
   // Reset store when mounting with a new run
   useEffect(() => {
@@ -47,6 +53,34 @@ export default function RunPage({
   useEvolutionStream(id);
 
   const isTerminal = ["completed", "stopped", "failed"].includes(status);
+
+  if (loadState === "not-found") {
+    return (
+      <div className="max-w-3xl mx-auto space-y-6 pb-12">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              Run Not Found
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              This run does not exist anymore or was removed from the local database.
+            </p>
+            <div className="flex gap-2">
+              <Link href="/history">
+                <Button variant="outline">Open History</Button>
+              </Link>
+              <Link href="/new">
+                <Button>Start New Run</Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
@@ -86,7 +120,29 @@ export default function RunPage({
         errorMessage={errorMessage}
       />
 
+      {connectionStatus === "disconnected" && !isTerminal && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+          <WifiOff className="h-4 w-4" />
+          Live updates disconnected. Refresh the page to resync from the database.
+        </div>
+      )}
+
+      {loadState === "error" && status === "pending" && (
+        <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          <AlertTriangle className="h-4 w-4" />
+          Failed to load run data from the API.
+        </div>
+      )}
+
       <Separator />
+
+      {/* Original prompt — for comparison with the optimized result */}
+      {(userPrompt || taskDescription) && (
+        <OriginalPrompt
+          userPrompt={userPrompt}
+          taskDescription={taskDescription ?? ""}
+        />
+      )}
 
       {/* Progress */}
       {(status === "running" || status === "initializing" || totalGenerations > 0) && (
@@ -95,6 +151,7 @@ export default function RunPage({
           totalGenerations={totalGenerations}
           evaluationProgress={evaluationProgress}
           status={status}
+          stopReason={stopReason}
         />
       )}
 
@@ -110,11 +167,15 @@ export default function RunPage({
       {/* Results card when completed */}
       {summary && <RunResults summary={summary} />}
 
-      {/* Chart + Best prompt side by side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Fitness chart (full width — Best Prompt is already in Results/RunResults) */}
+      {fitnessHistory.length > 0 && (
         <FitnessChart data={fitnessHistory} />
+      )}
+
+      {/* Show current best only while running (before results are available) */}
+      {!summary && bestPrompt && (
         <CurrentBest prompt={bestPrompt} />
-      </div>
+      )}
 
       {/* Genealogy DAG */}
       {(isTerminal || generationSummaries.length > 0) && <GenealogyDag runId={id} />}

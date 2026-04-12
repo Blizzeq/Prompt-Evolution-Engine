@@ -1,6 +1,6 @@
 import type { GemmaClient } from "@/lib/ai/client";
-import type { Prompt, TestCase, PromptMetadata } from "./types";
-import { buildBatchedJudgePrompt, buildJudgePrompt } from "@/lib/ai/prompts";
+import type { EvalMethod, Prompt, TestCase, PromptMetadata } from "./types";
+import { buildBatchedJudgePrompt, buildJudgePrompt, buildCombinedEvaluatePrompt } from "@/lib/ai/prompts";
 import * as queries from "@/lib/db/queries";
 
 interface EvaluationResult {
@@ -10,8 +10,8 @@ interface EvaluationResult {
 }
 
 /**
- * Evaluate a single prompt against all test cases.
- * Uses batched judging to minimize API calls.
+ * Evaluate a single prompt — auto-selects between combined (1 API call)
+ * and full mode (N+1 API calls) based on the combinedEval flag.
  */
 export async function evaluatePrompt(
   ai: GemmaClient,
@@ -19,76 +19,262 @@ export async function evaluatePrompt(
   testCases: TestCase[],
   taskDescription: string,
   batchJudging: boolean,
+  combinedEval: boolean = false,
+  evalMethod: EvalMethod = "llm-judge",
 ): Promise<EvaluationResult> {
-  // Step 1: Execute prompt against each test case
-  const responses: Array<{ testCase: TestCase; response: string; latencyMs: number; tokensUsed: number }> = [];
+  if (evalMethod !== "llm-judge") {
+    return evaluatePromptFull(
+      ai,
+      prompt,
+      testCases,
+      taskDescription,
+      batchJudging,
+      evalMethod,
+    );
+  }
+
+  if (combinedEval) {
+    return evaluatePromptCombined(ai, prompt, testCases, taskDescription);
+  }
+
+  return evaluatePromptFull(
+    ai,
+    prompt,
+    testCases,
+    taskDescription,
+    batchJudging,
+    evalMethod,
+  );
+}
+
+/**
+ * Combined evaluation: 1 API call per prompt.
+ * LLM simulates execution and judges results in a single call.
+ * Best for rate-limited cloud providers (OpenRouter free tier).
+ */
+async function evaluatePromptCombined(
+  ai: GemmaClient,
+  prompt: Prompt,
+  testCases: TestCase[],
+  taskDescription: string,
+): Promise<EvaluationResult> {
+  if (!prompt.text) {
+    console.error(`[Fitness] Prompt ${prompt.id} has empty text, skipping evaluation`);
+    return {
+      prompt: { ...prompt, fitness: 0, metadata: null },
+      fitness: 0,
+      metadata: { scoresPerTestCase: {}, avgLatencyMs: 0, totalTokens: 0, judgeReasonings: {} },
+    };
+  }
+
+  const evalPrompt = buildCombinedEvaluatePrompt(
+    taskDescription,
+    prompt.text,
+    testCases.map((tc) => ({
+      id: tc.id,
+      input: tc.input,
+      expectedOutput: tc.expectedOutput,
+    })),
+  );
+
+  const result = await ai.generate({
+    prompt: evalPrompt,
+    temperature: 0.0,
+    jsonMode: true,
+    maxTokens: 2048,
+  });
+
+  const judgeData = parseBatchedJudgeResponse(result.text, testCases);
+  const scores: Record<string, number> = {};
+  const reasonings: Record<string, string> = {};
 
   for (const tc of testCases) {
-    const promptWithInput = prompt.text.replace("{input}", tc.input);
-    const startTime = Date.now();
+    const evaluation = judgeData[tc.id] ?? { score: 0, reasoning: "Failed to parse" };
+    scores[tc.id] = Math.max(0, Math.min(1, evaluation.score));
+    reasonings[tc.id] = evaluation.reasoning;
+  }
 
-    const result = await ai.generate({
-      prompt: promptWithInput,
-      temperature: 0.0,
-      maxTokens: 512,
-    });
-
-    responses.push({
-      testCase: tc,
-      response: result.text,
+  // Save evaluations to DB (with simulated response)
+  for (const tc of testCases) {
+    queries.createEvaluation({
+      promptId: prompt.id,
+      testCaseId: tc.id,
+      response: `[combined-eval] score=${scores[tc.id]?.toFixed(2)}`,
+      score: scores[tc.id] ?? 0,
+      judgeReasoning: reasonings[tc.id] ?? "",
       latencyMs: result.latencyMs,
-      tokensUsed: result.tokensUsed,
+      tokensUsed: Math.round(result.tokensUsed / testCases.length),
     });
   }
+
+  // Compute weighted fitness
+  let totalScore = 0;
+  let totalWeight = 0;
+  for (const tc of testCases) {
+    totalScore += (scores[tc.id] ?? 0) * tc.weight;
+    totalWeight += tc.weight;
+  }
+  const fitness = totalWeight > 0 ? totalScore / totalWeight : 0;
+
+  const metadata: PromptMetadata = {
+    scoresPerTestCase: scores,
+    avgLatencyMs: result.latencyMs,
+    totalTokens: result.tokensUsed,
+    judgeReasonings: reasonings,
+  };
+
+  queries.updatePromptFitness(prompt.id, fitness, metadata);
+
+  return {
+    prompt: { ...prompt, fitness, metadata },
+    fitness,
+    metadata,
+  };
+}
+
+/**
+ * Full evaluation: N exec calls + 1 judge call per prompt.
+ * Best for local models (Ollama) where API calls are free.
+ */
+async function evaluatePromptFull(
+  ai: GemmaClient,
+  prompt: Prompt,
+  testCases: TestCase[],
+  taskDescription: string,
+  batchJudging: boolean,
+  evalMethod: EvalMethod,
+): Promise<EvaluationResult> {
+  if (!prompt.text) {
+    console.error(`[Fitness] Prompt ${prompt.id} has empty text, skipping evaluation`);
+    return {
+      prompt: { ...prompt, fitness: 0, metadata: null },
+      fitness: 0,
+      metadata: { scoresPerTestCase: {}, avgLatencyMs: 0, totalTokens: 0, judgeReasonings: {} },
+    };
+  }
+
+  // Step 1: Execute prompt against all test cases in parallel
+  // GemmaClient's semaphore controls actual concurrency
+  const responses = await Promise.all(
+    testCases.map(async (tc) => {
+      try {
+        const promptWithInput = prompt.text.includes("{input}")
+          ? prompt.text.replace("{input}", tc.input)
+          : `${prompt.text}\n\nInput: ${tc.input}`;
+
+        const result = await ai.generate({
+          prompt: promptWithInput,
+          temperature: 0.0,
+          maxTokens: 512,
+        });
+
+        return {
+          testCase: tc,
+          response: result.text,
+          latencyMs: result.latencyMs,
+          tokensUsed: result.tokensUsed,
+        };
+      } catch (error) {
+        console.error(`[Fitness] Failed to evaluate prompt ${prompt.id} on test case ${tc.id}:`, error);
+        return {
+          testCase: tc,
+          response: `[Error: ${error instanceof Error ? error.message : "Unknown error"}]`,
+          latencyMs: 0,
+          tokensUsed: 0,
+        };
+      }
+    }),
+  );
 
   // Step 2: Judge responses
   const scores: Record<string, number> = {};
   const reasonings: Record<string, string> = {};
+  let judgeTokens = 0;
 
-  if (batchJudging && testCases.length > 1) {
-    // Batched: one LLM call for all test cases
-    const judgeResult = await ai.generate({
-      prompt: buildBatchedJudgePrompt(
-        taskDescription,
-        prompt.text,
-        responses.map((r) => ({
-          id: r.testCase.id,
-          input: r.testCase.input,
-          expectedOutput: r.testCase.expectedOutput,
-          actualResponse: r.response,
-        })),
-      ),
-      temperature: 0.0,
-      jsonMode: true,
-      maxTokens: 2048,
-    });
-
-    const judgeData = parseBatchedJudgeResponse(judgeResult.text, testCases);
-
-    for (const tc of testCases) {
-      const evaluation = judgeData[tc.id] ?? { score: 0, reasoning: "Failed to parse judge response" };
-      scores[tc.id] = Math.max(0, Math.min(1, evaluation.score));
-      reasonings[tc.id] = evaluation.reasoning;
-    }
-  } else {
-    // Individual: one LLM call per test case
+  if (evalMethod === "exact-match" || evalMethod === "contains") {
     for (const r of responses) {
+      const evaluation = scoreDeterministically(
+        r.response,
+        r.testCase.expectedOutput,
+        evalMethod,
+      );
+      scores[r.testCase.id] = evaluation.score;
+      reasonings[r.testCase.id] = evaluation.reasoning;
+    }
+  } else if (batchJudging && testCases.length > 1) {
+    try {
       const judgeResult = await ai.generate({
-        prompt: buildJudgePrompt(
+        prompt: buildBatchedJudgePrompt(
           taskDescription,
           prompt.text,
-          r.testCase.input,
-          r.testCase.expectedOutput,
-          r.response,
+          responses.map((r) => ({
+            id: r.testCase.id,
+            input: r.testCase.input,
+            expectedOutput: r.testCase.expectedOutput,
+            actualResponse: r.response,
+          })),
         ),
         temperature: 0.0,
         jsonMode: true,
-        maxTokens: 256,
+        maxTokens: 2048,
       });
 
-      const parsed = parseIndividualJudgeResponse(judgeResult.text);
-      scores[r.testCase.id] = Math.max(0, Math.min(1, parsed.score));
-      reasonings[r.testCase.id] = parsed.reasoning;
+      judgeTokens += judgeResult.tokensUsed;
+      const judgeData = parseBatchedJudgeResponse(judgeResult.text, testCases);
+
+      for (const tc of testCases) {
+        const evaluation = judgeData[tc.id] ?? { score: 0, reasoning: "Failed to parse judge response" };
+        scores[tc.id] = Math.max(0, Math.min(1, evaluation.score));
+        reasonings[tc.id] = evaluation.reasoning;
+      }
+    } catch (error) {
+      for (const tc of testCases) {
+        scores[tc.id] = 0;
+        reasonings[tc.id] = `Judge failed: ${error instanceof Error ? error.message : "Unknown error"}`;
+      }
+    }
+  } else {
+    const judgeResults = await Promise.allSettled(
+      responses.map(async (r) => {
+        const judgeResult = await ai.generate({
+          prompt: buildJudgePrompt(
+            taskDescription,
+            prompt.text,
+            r.testCase.input,
+            r.testCase.expectedOutput,
+            r.response,
+          ),
+          temperature: 0.0,
+          jsonMode: true,
+          maxTokens: 256,
+        });
+
+        const parsed = parseIndividualJudgeResponse(judgeResult.text);
+        return {
+          testCaseId: r.testCase.id,
+          score: Math.max(0, Math.min(1, parsed.score)),
+          reasoning: parsed.reasoning,
+          tokensUsed: judgeResult.tokensUsed,
+        };
+      }),
+    );
+
+    for (let index = 0; index < judgeResults.length; index++) {
+      const outcome = judgeResults[index];
+      const testCaseId = responses[index].testCase.id;
+
+      if (outcome.status === "fulfilled") {
+        scores[testCaseId] = outcome.value.score;
+        reasonings[testCaseId] = outcome.value.reasoning;
+        judgeTokens += outcome.value.tokensUsed;
+        continue;
+      }
+
+      scores[testCaseId] = 0;
+      reasonings[testCaseId] =
+        outcome.reason instanceof Error
+          ? outcome.reason.message
+          : "Judge request failed";
     }
   }
 
@@ -109,6 +295,8 @@ export async function evaluatePrompt(
     totalLatency += r.latencyMs;
     totalTokens += r.tokensUsed;
   }
+
+  totalTokens += judgeTokens;
 
   // Step 4: Compute weighted average fitness
   let totalScore = 0;
@@ -137,6 +325,37 @@ export async function evaluatePrompt(
     fitness,
     metadata,
   };
+}
+
+function scoreDeterministically(
+  actualResponse: string,
+  expectedOutput: string,
+  method: Extract<EvalMethod, "exact-match" | "contains">,
+): { score: number; reasoning: string } {
+  const normalizedActual = normalizeComparableText(actualResponse);
+  const normalizedExpected = normalizeComparableText(expectedOutput);
+
+  if (!normalizedExpected) {
+    return { score: 0, reasoning: "Expected output is empty" };
+  }
+
+  if (method === "exact-match") {
+    const matches = normalizedActual === normalizedExpected;
+    return {
+      score: matches ? 1 : 0,
+      reasoning: matches ? "Exact match" : "Response does not exactly match expected output",
+    };
+  }
+
+  const contains = normalizedActual.includes(normalizedExpected);
+  return {
+    score: contains ? 1 : 0,
+    reasoning: contains ? "Expected output is contained in the response" : "Response does not contain the expected output",
+  };
+}
+
+function normalizeComparableText(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 /**

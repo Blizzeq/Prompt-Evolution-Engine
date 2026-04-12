@@ -167,33 +167,7 @@ export function EvolutionConfig({ values, onChange }: EvolutionConfigProps) {
       </div>
 
       {/* Strategy Selects */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* EA Variant */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-1.5">
-            <Label>Algorithm</Label>
-            <HelpTip text="GA: standard genetic algorithm. DE: differential evolution with vector-like prompt arithmetic." />
-          </div>
-          <Select
-            value={values.eaVariant}
-            onValueChange={(v) =>
-              update({
-                eaVariant: v as "ga" | "de",
-                crossoverStrategy:
-                  v === "de" ? "differential" : values.crossoverStrategy,
-              })
-            }
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ga">Genetic Algorithm</SelectItem>
-              <SelectItem value="de">Differential Evolution</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Eval Method */}
         <div className="space-y-2">
           <div className="flex items-center gap-1.5">
@@ -211,9 +185,6 @@ export function EvolutionConfig({ values, onChange }: EvolutionConfigProps) {
               <SelectItem value="llm-judge">LLM Judge</SelectItem>
               <SelectItem value="exact-match">Exact Match</SelectItem>
               <SelectItem value="contains">Contains</SelectItem>
-              <SelectItem value="semantic-similarity">
-                Semantic Similarity
-              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -267,13 +238,13 @@ export function EvolutionConfig({ values, onChange }: EvolutionConfigProps) {
           <div className="space-y-2">
             <div className="flex items-center gap-1.5">
               <Label>
-                Fitness Threshold: {(values.fitnessThreshold * 100).toFixed(0)}%
+                  Target Fitness: {(values.fitnessThreshold * 100).toFixed(0)}%
               </Label>
-              <HelpTip text="Minimum fitness to survive. Prompts below this are eliminated." />
+                <HelpTip text="Stop early once the best prompt reaches this score." />
             </div>
             <Slider
-              min={0}
-              max={50}
+                min={70}
+                max={100}
               step={5}
               value={[values.fitnessThreshold * 100]}
               onValueChange={(v) => update({ fitnessThreshold: sliderVal(v) / 100 })}

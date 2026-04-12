@@ -35,7 +35,7 @@ export function FitnessChart({ data }: FitnessChartProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
+          <div className="h-[250px] flex items-center justify-center text-sm text-muted-foreground">
             Waiting for first generation...
           </div>
         </CardContent>
@@ -52,58 +52,62 @@ export function FitnessChart({ data }: FitnessChartProps) {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <TrendingUp className="h-4 w-4" />
           Fitness Over Generations
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+        <ResponsiveContainer width="100%" height={250}>
+          <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.5} />
             <XAxis
               dataKey="generation"
-              label={{ value: "Generation", position: "insideBottom", offset: -5 }}
-              className="text-xs"
+              tick={{ fontSize: 12 }}
+              tickFormatter={(v) => `Gen ${v}`}
             />
             <YAxis
               domain={[0, 100]}
-              label={{ value: "Fitness %", angle: -90, position: "insideLeft" }}
-              className="text-xs"
+              tick={{ fontSize: 12 }}
+              tickFormatter={(v) => `${v}%`}
             />
             <Tooltip
               contentStyle={{
                 backgroundColor: "hsl(var(--card))",
                 border: "1px solid hsl(var(--border))",
-                borderRadius: "var(--radius)",
+                borderRadius: "8px",
                 fontSize: "12px",
+                padding: "8px 12px",
               }}
+              formatter={(value) => [`${value}%`]}
             />
-            <Legend />
+            <Legend
+              wrapperStyle={{ fontSize: "12px" }}
+            />
             <Line
               type="monotone"
               dataKey="Best"
-              stroke="hsl(var(--chart-1))"
-              strokeWidth={2}
-              dot={{ r: 4 }}
-              activeDot={{ r: 6 }}
+              stroke="#22c55e"
+              strokeWidth={2.5}
+              dot={{ r: 5, fill: "#22c55e", strokeWidth: 0 }}
+              activeDot={{ r: 7, fill: "#22c55e" }}
             />
             <Line
               type="monotone"
               dataKey="Mean"
-              stroke="hsl(var(--chart-2))"
+              stroke="#3b82f6"
               strokeWidth={1.5}
               strokeDasharray="5 5"
-              dot={{ r: 3 }}
+              dot={{ r: 3, fill: "#3b82f6", strokeWidth: 0 }}
             />
             <Line
               type="monotone"
               dataKey="Worst"
-              stroke="hsl(var(--chart-3))"
+              stroke="#ef4444"
               strokeWidth={1}
               strokeDasharray="3 3"
-              dot={{ r: 2 }}
+              dot={{ r: 2, fill: "#ef4444", strokeWidth: 0 }}
             />
           </LineChart>
         </ResponsiveContainer>

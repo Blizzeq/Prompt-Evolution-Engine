@@ -2,11 +2,11 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
 import path from "path";
+import fs from "node:fs";
 
 const DB_PATH = path.join(process.cwd(), "data", "evolution.sqlite");
 
 function createDatabase() {
-  const fs = require("fs");
   const dir = path.dirname(DB_PATH);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -17,10 +17,26 @@ function createDatabase() {
   // Performance pragmas for SQLite
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("synchronous = NORMAL");
-  sqlite.pragma("busy_timeout = 10000");
+  sqlite.pragma("busy_timeout = 30000");
   sqlite.pragma("foreign_keys = ON");
 
+  recoverOrphanedRuns(sqlite);
+
   return drizzle(sqlite, { schema });
+}
+
+function recoverOrphanedRuns(sqlite: Database.Database): void {
+  sqlite.exec(`
+    UPDATE evolution_runs
+    SET
+      status = 'failed',
+      error = CASE
+        WHEN error IS NULL OR error = '' THEN 'Run was interrupted by a process restart.'
+        ELSE error
+      END,
+      completed_at = COALESCE(completed_at, datetime('now'))
+    WHERE status IN ('pending', 'initializing', 'running');
+  `);
 }
 
 // Singleton — reuse across hot reloads in dev, lazy init for build

@@ -1,6 +1,14 @@
 import { z } from "zod";
 
 export const startEvolutionSchema = z.object({
+  // Quick mode: user provides prompt + context, system generates test cases
+  mode: z.enum(["quick", "advanced"]).default("advanced"),
+
+  // Quick mode fields
+  userPrompt: z.string().max(5000).optional(),
+  context: z.string().max(3000).optional(),
+
+  // Advanced mode fields (also used as base)
   taskDescription: z
     .string()
     .min(10, "Task description must be at least 10 characters")
@@ -14,16 +22,11 @@ export const startEvolutionSchema = z.object({
         weight: z.number().min(0).max(10).default(1.0),
       }),
     )
-    .min(3, "At least 3 test cases required")
-    .max(20, "At most 20 test cases"),
+    .max(20, "At most 20 test cases")
+    .default([]),
 
   seedPrompts: z
-    .array(
-      z
-        .string()
-        .max(2000)
-        .refine((s) => s.includes("{input}"), "Seed prompt must contain {input} placeholder"),
-    )
+    .array(z.string().max(5000))
     .max(4)
     .optional(),
 
@@ -35,7 +38,7 @@ export const startEvolutionSchema = z.object({
       eliteCount: z.number().int().min(1).max(4).optional(),
       eaVariant: z.enum(["ga", "de"]).optional(),
       evalMethod: z.enum(["llm-judge", "exact-match", "contains", "semantic-similarity"]).optional(),
-      modelId: z.enum(["gemma4", "gemma4:27b"]).optional(),
+      modelId: z.string().optional(),
       provider: z.enum(["ollama", "google-ai-studio", "openrouter"]).optional(),
       crossoverStrategy: z.enum(["simple", "section-aware", "differential"]).optional(),
       mutationStrategies: z
@@ -45,6 +48,7 @@ export const startEvolutionSchema = z.object({
       fitnessThreshold: z.number().min(0).max(1).optional(),
       earlyStopGenerations: z.number().int().min(1).max(10).optional(),
       batchTestCases: z.boolean().optional(),
+      combinedEval: z.boolean().optional(),
       delayBetweenCalls: z.number().int().min(0).max(30000).optional(),
       ollamaComputeMode: z.enum(["auto", "gpu", "cpu", "hybrid"]).optional(),
       ollamaNumGpuLayers: z.number().int().min(0).max(200).optional(),

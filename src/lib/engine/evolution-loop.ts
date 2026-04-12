@@ -4,7 +4,6 @@ import type {
   GenerationSummary,
   Prompt,
   RunSummary,
-  StopReason,
   TestCase,
 } from "./types";
 import type { GemmaClient } from "@/lib/ai/client";
@@ -81,7 +80,10 @@ export class EvolutionEngine {
           queries.updateRunProgress(runId, {
             status: "stopped",
             stoppedReason: "user-stopped",
+            currentGeneration: gen - 1,
             completedAt: new Date().toISOString(),
+            totalApiCalls: this.ai.getCallCount(),
+            totalTokensUsed: this.ai.getTotalTokensUsed(),
           });
           break;
         }
@@ -94,24 +96,58 @@ export class EvolutionEngine {
           totalGenerations: this.config.generations,
         });
 
-        // ── Step 1: Evaluate fitness ──
+        // ── Step 1: Evaluate fitness (parallel for cloud, sequential for Ollama) ──
         const unevaluated = population.filter((p) => p.fitness === null);
         let evaluated = 0;
 
-        for (const prompt of unevaluated) {
-          if (this.aborted) break;
+        // Fire all evaluations concurrently — GemmaClient's semaphore
+        // controls actual parallelism (5 for cloud, 1 for Ollama)
+        const evaluationResults = await Promise.all(
+          unevaluated.map(async (prompt) => {
+            if (this.aborted) {
+              return { prompt, skipped: true };
+            }
 
-          const result = await evaluatePrompt(
-            this.ai,
-            prompt,
-            testCases,
-            run.taskDescription,
-            this.config.batchTestCases,
-          );
+            try {
+              const result = await evaluatePrompt(
+                this.ai,
+                prompt,
+                testCases,
+                run.taskDescription,
+                this.config.batchTestCases,
+                this.config.combinedEval ?? false,
+                this.config.evalMethod,
+              );
 
-          // Update prompt in the population array
-          prompt.fitness = result.fitness;
-          prompt.metadata = result.metadata;
+              return { prompt, result };
+            } catch (error) {
+              return { prompt, error };
+            }
+          }),
+        );
+
+        for (const outcome of evaluationResults) {
+          if (outcome.skipped) {
+            continue;
+          }
+
+          if (outcome.error) {
+            const metadata = {
+              scoresPerTestCase: {},
+              avgLatencyMs: 0,
+              totalTokens: 0,
+              judgeReasonings: {
+                error:
+                  outcome.error instanceof Error
+                    ? outcome.error.message
+                    : "Evaluation failed",
+              },
+            };
+            promptFailureFallback(outcome.prompt, metadata);
+          } else if (outcome.result) {
+            outcome.prompt.fitness = outcome.result.fitness;
+            outcome.prompt.metadata = outcome.result.metadata;
+          }
 
           evaluated++;
           this.emit({
@@ -141,18 +177,26 @@ export class EvolutionEngine {
 
         // ── Step 5: Early stopping ──
         if (noImprovementCount >= this.config.earlyStopGenerations) {
-          this.emit({ type: "run:stopped", reason: "early-convergence" });
           queries.updateRunProgress(runId, {
+            currentGeneration: gen,
             stoppedReason: "early-convergence",
+            bestFitness: bestEverPrompt?.fitness ?? undefined,
+            bestPromptId: bestEverPrompt?.id ?? undefined,
+            totalApiCalls: this.ai.getCallCount(),
+            totalTokensUsed: this.ai.getTotalTokensUsed(),
           });
           break;
         }
 
         // Fitness threshold reached
-        if (summary.bestFitness >= 0.99) {
-          this.emit({ type: "run:stopped", reason: "fitness-reached" });
+        if (summary.bestFitness >= this.config.fitnessThreshold) {
           queries.updateRunProgress(runId, {
+            currentGeneration: gen,
             stoppedReason: "fitness-reached",
+            bestFitness: bestEverPrompt?.fitness ?? undefined,
+            bestPromptId: bestEverPrompt?.id ?? undefined,
+            totalApiCalls: this.ai.getCallCount(),
+            totalTokensUsed: this.ai.getTotalTokensUsed(),
           });
           break;
         }
@@ -176,6 +220,7 @@ export class EvolutionEngine {
           bestFitness: bestEverPrompt?.fitness ?? undefined,
           bestPromptId: bestEverPrompt?.id ?? undefined,
           totalApiCalls: this.ai.getCallCount(),
+          totalTokensUsed: this.ai.getTotalTokensUsed(),
         });
       }
 
@@ -192,7 +237,7 @@ export class EvolutionEngine {
       const runSummary: RunSummary = {
         totalGenerations: fitnessHistory.length,
         totalApiCalls: this.ai.getCallCount(),
-        totalTokensUsed: 0, // TODO: track from AI client
+        totalTokensUsed: this.ai.getTotalTokensUsed(),
         totalDurationMs,
         bestPrompt: bestEverPrompt!,
         seedBestFitness,
@@ -216,6 +261,7 @@ export class EvolutionEngine {
         bestFitness: finalBestFitness,
         bestPromptId: bestEverPrompt?.id ?? undefined,
         totalApiCalls: this.ai.getCallCount(),
+        totalTokensUsed: this.ai.getTotalTokensUsed(),
         currentGeneration: fitnessHistory.length,
       });
 
@@ -230,11 +276,12 @@ export class EvolutionEngine {
           stoppedReason: "user-stopped",
           completedAt: new Date().toISOString(),
           totalApiCalls: this.ai.getCallCount(),
+          totalTokensUsed: this.ai.getTotalTokensUsed(),
         });
         return {
           totalGenerations: 0,
           totalApiCalls: this.ai.getCallCount(),
-          totalTokensUsed: 0,
+          totalTokensUsed: this.ai.getTotalTokensUsed(),
           totalDurationMs: Date.now() - startTime,
           bestPrompt: { id: "", runId, generation: 0, text: "", fitness: null, parentIds: [], origin: { type: "seed", source: "user" }, metadata: null },
           seedBestFitness: 0,
@@ -253,6 +300,7 @@ export class EvolutionEngine {
         error: message,
         completedAt: new Date().toISOString(),
         totalApiCalls: this.ai.getCallCount(),
+        totalTokensUsed: this.ai.getTotalTokensUsed(),
       });
 
       throw new EvolutionError(`Evolution failed: ${message}`, error instanceof Error ? error : null);
@@ -272,7 +320,7 @@ export class EvolutionEngine {
     for (const elite of elites) {
       const row = queries.createPrompt({
         runId,
-        generation: currentGen + 1,
+        generation: currentGen,
         text: elite.text,
         fitness: elite.fitness ?? undefined,
         origin: { type: "elite", originalId: elite.id },
@@ -282,76 +330,107 @@ export class EvolutionEngine {
       nextGen.push(toPrompt(row));
     }
 
-    // Fill remaining slots
+    // Fill remaining slots — create offspring in parallel
+    // GemmaClient's semaphore controls actual parallelism
     const remaining = this.config.populationSize - this.config.eliteCount;
 
-    for (let i = 0; i < remaining; i++) {
-      if (this.aborted) break;
-
+    // Pre-compute parent selections and mutation types (sync operations)
+    const offspringPlans = Array.from({ length: remaining }, () => {
       const doCrossover = Math.random() > this.config.mutationRate;
-
       if (doCrossover) {
-        // Crossover
         const [parent1, parent2] = tournamentSelect(population, 2);
-
-        const childText = await performCrossover(
-          this.ai,
-          taskDescription,
-          parent1,
-          parent2,
-          this.config.crossoverStrategy,
-          population,
-        );
-
-        const row = queries.createPrompt({
-          runId,
-          generation: currentGen + 1,
-          text: childText,
-          origin: {
-            type: "crossover",
-            parents: [parent1.id, parent2.id],
-            strategy: this.config.crossoverStrategy,
-          },
-          parentIds: [parent1.id, parent2.id],
-        });
-        nextGen.push(toPrompt(row));
-
-        this.emit({
-          type: "offspring:created",
-          generation: currentGen + 1,
-          prompt: toPrompt(row),
-        });
+        return { type: "crossover" as const, parent1, parent2 };
       } else {
-        // Mutation
         const [parent] = tournamentSelect(population, 1);
         const mutationType = selectMutationType(this.config.mutationStrategies);
-
-        const mutatedText = await performMutation(
-          this.ai,
-          taskDescription,
-          parent,
-          mutationType,
-        );
-
-        const row = queries.createPrompt({
-          runId,
-          generation: currentGen + 1,
-          text: mutatedText,
-          origin: {
-            type: "mutation",
-            parent: parent.id,
-            mutationType,
-          },
-          parentIds: [parent.id],
-        });
-        nextGen.push(toPrompt(row));
-
-        this.emit({
-          type: "offspring:created",
-          generation: currentGen + 1,
-          prompt: toPrompt(row),
-        });
+        return { type: "mutation" as const, parent, mutationType };
       }
+    });
+
+    const offspringResults = await Promise.allSettled(
+      offspringPlans.map(async (plan) => {
+        if (this.aborted) return null;
+
+        if (plan.type === "crossover") {
+          const childText = await performCrossover(
+            this.ai,
+            taskDescription,
+            plan.parent1,
+            plan.parent2,
+            this.config.crossoverStrategy,
+            population,
+          );
+
+          const row = queries.createPrompt({
+            runId,
+            generation: currentGen,
+            text: childText,
+            origin: {
+              type: "crossover",
+              parents: [plan.parent1.id, plan.parent2.id],
+              strategy: this.config.crossoverStrategy,
+            },
+            parentIds: [plan.parent1.id, plan.parent2.id],
+          });
+          const prompt = toPrompt(row);
+
+          this.emit({
+            type: "offspring:created",
+            generation: currentGen,
+            prompt,
+          });
+
+          return prompt;
+        } else {
+          const mutatedText = await performMutation(
+            this.ai,
+            taskDescription,
+            plan.parent,
+            plan.mutationType,
+          );
+
+          const row = queries.createPrompt({
+            runId,
+            generation: currentGen,
+            text: mutatedText,
+            origin: {
+              type: "mutation",
+              parent: plan.parent.id,
+              mutationType: plan.mutationType,
+            },
+            parentIds: [plan.parent.id],
+          });
+          const prompt = toPrompt(row);
+
+          this.emit({
+            type: "offspring:created",
+            generation: currentGen,
+            prompt,
+          });
+
+          return prompt;
+        }
+      }),
+    );
+
+    for (const outcome of offspringResults) {
+      if (outcome.status === "fulfilled" && outcome.value) {
+        nextGen.push(outcome.value);
+      }
+    }
+
+    while (nextGen.length < this.config.populationSize) {
+      const fallbackParent = population[nextGen.length % population.length];
+      const row = queries.createPrompt({
+        runId,
+        generation: currentGen,
+        text: fallbackParent.text,
+        fitness: fallbackParent.fitness ?? undefined,
+        origin: { type: "elite", originalId: fallbackParent.id },
+        parentIds: [fallbackParent.id],
+        metadata: fallbackParent.metadata ?? undefined,
+      });
+      nextGen.push(toPrompt(row));
     }
 
     return nextGen;
@@ -373,6 +452,30 @@ function computeGenerationSummary(
   generation: number,
   startTime: number,
 ): GenerationSummary {
+  if (population.length === 0) {
+    // Fallback for empty population — should not happen in normal flow
+    const placeholder: Prompt = {
+      id: "empty",
+      runId: "",
+      generation,
+      text: "(no prompts in population)",
+      fitness: 0,
+      parentIds: [],
+      origin: { type: "seed", source: "generated" },
+      metadata: null,
+    };
+    return {
+      generation,
+      bestFitness: 0,
+      meanFitness: 0,
+      worstFitness: 0,
+      bestPrompt: placeholder,
+      populationSize: 0,
+      apiCallsThisGen: 0,
+      durationMs: Date.now() - startTime,
+    };
+  }
+
   const fitnesses = population
     .map((p) => p.fitness ?? 0)
     .sort((a, b) => b - a);
@@ -402,6 +505,21 @@ function findConvergenceGeneration(history: GenerationSummary[]): number | null 
     }
   }
   return null;
+}
+
+function promptFailureFallback(
+  prompt: Prompt,
+  metadata: Prompt["metadata"],
+): void {
+  prompt.fitness = 0;
+  prompt.metadata = metadata;
+
+  queries.updatePromptFitness(prompt.id, 0, {
+    scoresPerTestCase: metadata?.scoresPerTestCase ?? {},
+    avgLatencyMs: metadata?.avgLatencyMs ?? 0,
+    totalTokens: metadata?.totalTokens ?? 0,
+    judgeReasonings: metadata?.judgeReasonings ?? {},
+  });
 }
 
 function toPrompt(row: ReturnType<typeof queries.createPrompt>): Prompt {

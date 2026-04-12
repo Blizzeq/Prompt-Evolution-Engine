@@ -32,34 +32,83 @@ export async function initializePopulation(
   // Generate remaining seeds via LLM
   const needed = populationSize - population.length;
   if (needed > 0) {
-    const seedPrompt = buildSeedGeneratorPrompt(
-      taskDescription,
-      userSeeds,
-      needed,
-    );
+    try {
+      const seedPrompt = buildSeedGeneratorPrompt(
+        taskDescription,
+        userSeeds,
+        needed,
+      );
 
-    const result = await ai.generate({
-      prompt: seedPrompt,
-      temperature: 0.9,
-      jsonMode: true,
-      maxTokens: 4096,
-    });
-
-    const texts = parseSeedResponse(result.text, needed);
-
-    for (const text of texts) {
-      const prompt = queries.createPrompt({
-        runId,
-        generation: 0,
-        text,
-        origin: { type: "seed", source: "generated" },
-        parentIds: [],
+      const result = await ai.generate({
+        prompt: seedPrompt,
+        temperature: 0.9,
+        jsonMode: true,
+        maxTokens: 4096,
       });
-      population.push(toPrompt(prompt));
+
+      const texts = parseSeedResponse(result.text, needed);
+
+      for (const text of texts) {
+        const prompt = queries.createPrompt({
+          runId,
+          generation: 0,
+          text,
+          origin: { type: "seed", source: "generated" },
+          parentIds: [],
+        });
+        population.push(toPrompt(prompt));
+      }
+
+      while (population.length < populationSize) {
+        const fallbackText = generateFallbackSeed(
+          taskDescription,
+          population.length,
+        );
+        const prompt = queries.createPrompt({
+          runId,
+          generation: 0,
+          text: fallbackText,
+          origin: { type: "seed", source: "generated" },
+          parentIds: [],
+        });
+        population.push(toPrompt(prompt));
+      }
+    } catch (error) {
+      console.error("[Population] Failed to generate seeds via LLM:", error);
+      // Fallback: generate simple template-based seeds if LLM fails
+      for (let i = 0; i < needed && population.length < populationSize; i++) {
+        const fallbackText = generateFallbackSeed(taskDescription, i);
+        const prompt = queries.createPrompt({
+          runId,
+          generation: 0,
+          text: fallbackText,
+          origin: { type: "seed", source: "generated" },
+          parentIds: [],
+        });
+        population.push(toPrompt(prompt));
+      }
     }
   }
 
+  if (population.length === 0) {
+    throw new Error("Failed to initialize population — no seeds available");
+  }
+
   return population;
+}
+
+/**
+ * Generate a simple fallback seed when LLM-based generation fails.
+ */
+function generateFallbackSeed(taskDescription: string, variant: number): string {
+  const templates = [
+    `You are a helpful assistant. Complete the following task: ${taskDescription}\n\nInput: {input}`,
+    `Task: ${taskDescription}\n\nPlease process the following input carefully and provide your answer.\n\nInput: {input}`,
+    `Given the task "${taskDescription}", analyze the input below and respond appropriately.\n\n{input}`,
+    `Instructions: ${taskDescription}\n\nBe precise and concise in your response.\n\nInput: {input}`,
+    `You are an expert at this task: ${taskDescription}\n\nProcess this input step by step:\n\n{input}`,
+  ];
+  return templates[variant % templates.length];
 }
 
 /**

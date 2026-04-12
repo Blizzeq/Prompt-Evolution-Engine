@@ -3,18 +3,49 @@ import { getConfig } from "@/lib/utils/config";
 import { checkOllamaHealth } from "@/lib/ai/providers/ollama";
 import { checkGoogleAIHealth } from "@/lib/ai/providers/google-ai";
 import { checkOpenRouterHealth } from "@/lib/ai/providers/openrouter";
+import {
+  enforceRouteRateLimit,
+  normalizeOllamaBaseUrl,
+  requireTrustedLocalRequest,
+} from "@/lib/utils/request-security";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const provider = searchParams.get("provider");
-  const apiKey = searchParams.get("apiKey") ?? "";
+export async function GET() {
   const config = getConfig();
 
+  return NextResponse.json({
+    status: "ok",
+    defaultProvider: config.provider,
+    modelId: config.modelId,
+    mode: config.allowRemoteAccess ? "remote-enabled" : "local-only",
+  });
+}
+
+export async function POST(request: Request) {
+  const config = getConfig();
+
+  const accessError = requireTrustedLocalRequest(request, "Provider health check");
+  if (accessError) {
+    return accessError;
+  }
+
+  const rateLimitError = enforceRouteRateLimit(request, "health", {
+    limit: 30,
+    windowMs: 60_000,
+  });
+  if (rateLimitError) {
+    return rateLimitError;
+  }
+
+  const body = await request.json().catch(() => ({}));
+  const provider = body.provider;
+
   if (provider === "ollama" || (!provider && config.provider === "ollama")) {
-    const baseUrl = searchParams.get("baseUrl") ?? config.ollamaBaseUrl;
-    const modelId = searchParams.get("modelId") ?? config.modelId;
+    const baseUrl = normalizeOllamaBaseUrl(
+      body.baseUrl ?? config.ollamaBaseUrl,
+    );
+    const modelId = body.modelId ?? config.modelId;
     const health = await checkOllamaHealth(baseUrl);
     // Check if the selected model (or its base name) is available
     const modelBase = modelId.split(":")[0];
@@ -31,7 +62,18 @@ export async function GET(request: Request) {
   }
 
   if (provider === "google-ai-studio") {
-    const key = apiKey || config.googleAiApiKey;
+    const key = body.apiKey ?? "";
+    if (!key) {
+      return NextResponse.json(
+        {
+          provider: "google-ai-studio",
+          status: "missing-key",
+          valid: false,
+        },
+        { status: 400 },
+      );
+    }
+
     const valid = await checkGoogleAIHealth(key);
     return NextResponse.json({
       provider: "google-ai-studio",
@@ -41,7 +83,18 @@ export async function GET(request: Request) {
   }
 
   if (provider === "openrouter") {
-    const key = apiKey || config.openrouterApiKey;
+    const key = body.apiKey ?? "";
+    if (!key) {
+      return NextResponse.json(
+        {
+          provider: "openrouter",
+          status: "missing-key",
+          valid: false,
+        },
+        { status: 400 },
+      );
+    }
+
     const valid = await checkOpenRouterHealth(key);
     return NextResponse.json({
       provider: "openrouter",
@@ -50,9 +103,5 @@ export async function GET(request: Request) {
     });
   }
 
-  return NextResponse.json({
-    status: "ok",
-    defaultProvider: config.provider,
-    modelId: config.modelId,
-  });
+  return NextResponse.json({ status: "invalid-provider" }, { status: 400 });
 }

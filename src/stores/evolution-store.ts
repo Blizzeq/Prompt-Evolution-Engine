@@ -21,6 +21,10 @@ interface EvolutionState {
   status: RunStatus;
   stopReason: StopReason | null;
   errorMessage: string | null;
+  userPrompt: string | null;
+  taskDescription: string | null;
+  loadState: "idle" | "loading" | "ready" | "not-found" | "error";
+  connectionStatus: "idle" | "connecting" | "live" | "disconnected";
 
   // Progress
   currentGeneration: number;
@@ -42,15 +46,28 @@ interface EvolutionState {
 
 interface EvolutionActions {
   setRunId: (id: string) => void;
+  setRunMeta: (meta: { userPrompt?: string | null; taskDescription?: string | null }) => void;
+  setLoadState: (state: EvolutionState["loadState"]) => void;
+  setConnectionStatus: (status: EvolutionState["connectionStatus"]) => void;
   processEvent: (event: EvolutionEvent) => void;
   reset: () => void;
 }
+
+const TERMINAL_STATUSES = new Set<RunStatus>([
+  "completed",
+  "stopped",
+  "failed",
+]);
 
 const initialState: EvolutionState = {
   runId: null,
   status: "pending",
   stopReason: null,
   errorMessage: null,
+  userPrompt: null,
+  taskDescription: null,
+  loadState: "idle",
+  connectionStatus: "idle",
   currentGeneration: 0,
   totalGenerations: 0,
   evaluationProgress: null,
@@ -66,7 +83,22 @@ export const useEvolutionStore = create<EvolutionState & EvolutionActions>()(
   (set) => ({
     ...initialState,
 
-    setRunId: (id) => set({ runId: id, status: "pending" }),
+    setRunId: (id) =>
+      set({
+        runId: id,
+        status: "pending",
+        loadState: "loading",
+        connectionStatus: "connecting",
+      }),
+
+    setRunMeta: (meta) => set({
+      userPrompt: meta.userPrompt ?? null,
+      taskDescription: meta.taskDescription ?? null,
+    }),
+
+    setLoadState: (loadState) => set({ loadState }),
+
+    setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
 
     processEvent: (event) =>
       set((state) => {
@@ -74,19 +106,38 @@ export const useEvolutionStore = create<EvolutionState & EvolutionActions>()(
 
         switch (event.type) {
           case "run:started":
-            return { ...state, events, status: "initializing", runId: event.runId };
+            return {
+              ...state,
+              events,
+              status: state.status === "pending" ? "initializing" : state.status,
+              runId: event.runId,
+              connectionStatus: TERMINAL_STATUSES.has(state.status)
+                ? state.connectionStatus
+                : "live",
+            };
 
           case "generation:started":
             return {
               ...state,
               events,
-              status: "running",
-              currentGeneration: event.generation,
-              totalGenerations: event.totalGenerations,
+              status: TERMINAL_STATUSES.has(state.status) ? state.status : "running",
+              currentGeneration: Math.max(state.currentGeneration, event.generation),
+              totalGenerations: Math.max(state.totalGenerations, event.totalGenerations),
               evaluationProgress: null,
             };
 
-          case "evaluation:progress":
+          case "evaluation:progress": {
+            if (event.generation < state.currentGeneration) {
+              return { ...state, events };
+            }
+
+            // Skip intermediate progress events to avoid UI flickering
+            // during parallel evaluation (many events fire simultaneously)
+            const prev = state.evaluationProgress;
+            if (prev && event.evaluated < event.total && event.evaluated - prev.evaluated < Math.max(1, Math.floor(event.total / 5))) {
+              // Skip unless it's a significant jump (at least 20% of total)
+              return { ...state, events };
+            }
             return {
               ...state,
               events,
@@ -95,6 +146,7 @@ export const useEvolutionStore = create<EvolutionState & EvolutionActions>()(
                 total: event.total,
               },
             };
+          }
 
           case "generation:complete": {
             const summary = event.summary;
@@ -152,6 +204,9 @@ export const useEvolutionStore = create<EvolutionState & EvolutionActions>()(
               status: "completed",
               summary: event.summary,
               bestPrompt: event.summary.bestPrompt,
+              currentGeneration: event.summary.totalGenerations,
+              totalGenerations: event.summary.totalGenerations,
+              connectionStatus: "idle",
               fitnessHistory:
                 event.summary.fitnessHistory.length > 0
                   ? event.summary.fitnessHistory
@@ -162,8 +217,11 @@ export const useEvolutionStore = create<EvolutionState & EvolutionActions>()(
             return {
               ...state,
               events,
-              status: "stopped",
+              // Don't downgrade from "completed" to "stopped" — keep completed status
+              // but store the stop reason (e.g., fitness-reached, early-convergence)
+              status: state.status === "completed" ? "completed" : "stopped",
               stopReason: event.reason,
+              connectionStatus: "idle",
             };
 
           case "run:error":
@@ -172,6 +230,7 @@ export const useEvolutionStore = create<EvolutionState & EvolutionActions>()(
               events,
               status: "failed",
               errorMessage: event.error,
+              connectionStatus: "idle",
             };
 
           default:
