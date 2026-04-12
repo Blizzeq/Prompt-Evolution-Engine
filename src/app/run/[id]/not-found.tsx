@@ -8,7 +8,7 @@ export default function RunNotFound() {
       <FileQuestion className="h-12 w-12 text-muted-foreground" />
       <h2 className="text-xl font-semibold">Run not found</h2>
       <p className="text-sm text-muted-foreground">
-        This evolution run does not exist or has been deleted.
+        This run does not exist or has already been removed.
       </p>
       <div className="flex gap-2">
         <Link href="/new">

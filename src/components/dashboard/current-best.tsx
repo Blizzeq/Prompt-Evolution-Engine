@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trophy, Copy, Check } from "lucide-react";
+import { Trophy, Copy, Check, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { Prompt } from "@/lib/engine/types";
@@ -21,13 +21,14 @@ export function CurrentBest({ prompt }: CurrentBestProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Trophy className="h-4 w-4" />
-            Best Prompt
+            Best prompt so far
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Waiting for first evaluation...
-          </p>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Sparkles className="h-4 w-4 animate-pulse" />
+            Waiting for the first scored candidate...
+          </div>
         </CardContent>
       </Card>
     );
@@ -36,27 +37,32 @@ export function CurrentBest({ prompt }: CurrentBestProps) {
   const handleCopy = async () => {
     await navigator.clipboard.writeText(prompt.text);
     setCopied(true);
-    toast.success("Prompt copied to clipboard");
+    toast.success("Prompt copied");
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <Card>
+    <Card className="border-primary/10">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Trophy className="h-4 w-4 text-yellow-500" />
-            Best Prompt
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-warning/10">
+              <Trophy className="h-3.5 w-3.5 text-warning" />
+            </div>
+            Best prompt so far
           </CardTitle>
           <div className="flex items-center gap-2">
             {prompt.fitness !== null && (
-              <Badge variant="secondary">
-                Fitness: {(prompt.fitness * 100).toFixed(1)}%
+              <Badge
+                variant="outline"
+                className="bg-success/10 text-success border-success/20 text-xs font-mono"
+              >
+                {(prompt.fitness * 100).toFixed(1)}%
               </Badge>
             )}
-            <Button variant="ghost" size="sm" onClick={handleCopy}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleCopy}>
               {copied ? (
-                <Check className="h-3.5 w-3.5" />
+                <Check className="h-3.5 w-3.5 text-success" />
               ) : (
                 <Copy className="h-3.5 w-3.5" />
               )}
@@ -65,12 +71,16 @@ export function CurrentBest({ prompt }: CurrentBestProps) {
         </div>
       </CardHeader>
       <CardContent>
-        <pre className="text-sm whitespace-pre-wrap font-mono bg-muted/50 rounded-md p-3 max-h-60 overflow-y-auto">
+        <pre className="text-sm whitespace-pre-wrap font-mono bg-muted/40 rounded-xl p-4 max-h-60 overflow-y-auto border border-border/50 leading-relaxed">
           {prompt.text}
         </pre>
-        <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-          <span>Generation {prompt.generation}</span>
-          <span>Origin: {prompt.origin.type}</span>
+        <div className="flex items-center gap-3 mt-3 text-[11px] text-muted-foreground">
+          <span className="bg-muted rounded-md px-2 py-0.5">
+            Gen {prompt.generation}
+          </span>
+          <span className="bg-muted rounded-md px-2 py-0.5">
+            {prompt.origin.type}
+          </span>
         </div>
       </CardContent>
     </Card>

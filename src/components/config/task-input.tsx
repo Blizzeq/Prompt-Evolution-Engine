@@ -12,10 +12,10 @@ interface TaskInputProps {
 export function TaskInput({ value, onChange, error }: TaskInputProps) {
   return (
     <div className="space-y-2">
-      <Label htmlFor="task-description">Task Description</Label>
+      <Label htmlFor="task-description">Task Summary</Label>
       <Textarea
         id="task-description"
-        placeholder="Describe what the prompt should do. E.g., 'Classify the sentiment of text as positive, negative, or neutral.'"
+        placeholder="Describe the task the prompt should solve."
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={3}
@@ -26,7 +26,7 @@ export function TaskInput({ value, onChange, error }: TaskInputProps) {
           <p className="text-xs text-destructive">{error}</p>
         ) : (
           <p className="text-xs text-muted-foreground">
-            Describe the task your prompt should solve (10-2000 chars)
+            Describe the task to optimize (10-2000 chars)
           </p>
         )}
         <span className="text-xs text-muted-foreground">

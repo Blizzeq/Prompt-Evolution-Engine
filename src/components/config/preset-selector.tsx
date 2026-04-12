@@ -32,9 +32,9 @@ export function PresetSelector({
   return (
     <div className="space-y-3">
       <div>
-        <h2 className="text-lg font-semibold">Quick Start</h2>
+        <h2 className="text-lg font-semibold">Presets</h2>
         <p className="text-sm text-muted-foreground">
-          Select a preset task or configure your own below
+          Load a starting template or configure the run manually.
         </p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">

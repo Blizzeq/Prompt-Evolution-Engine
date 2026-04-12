@@ -48,7 +48,7 @@ export function TestCaseEditor({
         <div>
           <Label>Test Cases</Label>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Input/output pairs to evaluate prompts against (3-20 required)
+            Input and expected output pairs used for scoring (3-20).
           </p>
         </div>
         <Button
@@ -73,7 +73,7 @@ export function TestCaseEditor({
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">
-                Test Case {index + 1}
+                Case {index + 1}
               </span>
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1.5">
@@ -110,14 +110,14 @@ export function TestCaseEditor({
               </div>
             </div>
             <Textarea
-              placeholder="Input text..."
+              placeholder="Input"
               value={tc.input}
               onChange={(e) => updateTestCase(index, "input", e.target.value)}
               rows={2}
               className="text-sm"
             />
             <Textarea
-              placeholder="Expected output..."
+              placeholder="Expected output"
               value={tc.expectedOutput}
               onChange={(e) =>
                 updateTestCase(index, "expectedOutput", e.target.value)

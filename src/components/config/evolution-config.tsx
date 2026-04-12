@@ -85,9 +85,9 @@ export function EvolutionConfig({ values, onChange }: EvolutionConfigProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Evolution Parameters</h2>
+        <h2 className="text-lg font-semibold">Search Settings</h2>
         <p className="text-sm text-muted-foreground">
-          Fine-tune the evolutionary algorithm
+          Tune population, scoring, and stopping rules.
         </p>
       </div>
 
@@ -257,8 +257,7 @@ export function EvolutionConfig({ values, onChange }: EvolutionConfigProps) {
           <div className="space-y-0.5">
             <Label>Batch Test Cases</Label>
             <p className="text-xs text-muted-foreground">
-              Judge all test cases in a single LLM call (faster, fewer API
-              calls)
+              Score all test cases in one LLM call.
             </p>
           </div>
           <Switch

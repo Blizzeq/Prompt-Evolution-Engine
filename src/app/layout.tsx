@@ -1,24 +1,36 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { IBM_Plex_Mono, IBM_Plex_Sans, Sora } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Header } from "@/components/layout/header";
+import { AppShell } from "@/components/layout/app-shell";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const sora = Sora({
+  variable: "--font-sora",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const plexSans = IBM_Plex_Sans({
+  variable: "--font-plex-sans",
+  weight: ["400", "500", "600", "700"],
+  subsets: ["latin"],
+});
+
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
+  weight: ["400", "500", "600"],
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Prompt Evolution Engine",
-  description: "Evolutionary optimization of LLM prompts using genetic algorithms",
+  title: {
+    default: "Prompt Evolution Engine",
+    template: "%s | Prompt Evolution Engine",
+  },
+  description:
+    "Local workspace for prompt optimization, evaluation, and run review.",
+  applicationName: "Prompt Evolution Engine",
 };
 
 export default function RootLayout({
@@ -29,14 +41,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      className={`${sora.variable} ${plexSans.variable} ${plexMono.variable} antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-screen flex flex-col">
+      <body className="min-h-screen bg-background text-foreground overflow-x-clip">
         <ThemeProvider>
           <TooltipProvider>
-            <Header />
-            <main className="flex-1 container py-6">{children}</main>
+            <AppShell>{children}</AppShell>
             <Toaster />
           </TooltipProvider>
         </ThemeProvider>

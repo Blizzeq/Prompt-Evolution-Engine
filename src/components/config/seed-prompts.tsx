@@ -30,13 +30,12 @@ export function SeedPrompts({ seeds, onChange }: SeedPromptsProps) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <Label>Seed Prompts (Optional)</Label>
+          <Label>Seed Prompts</Label>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Starting prompts for the population. Must contain{" "}
+            Optional starting prompts. Each must contain{" "}
             <code className="text-[10px] bg-muted px-1 rounded">
               {"{input}"}
-            </code>{" "}
-            placeholder. Up to 4.
+            </code>. Up to 4.
           </p>
         </div>
         <Button
@@ -53,8 +52,7 @@ export function SeedPrompts({ seeds, onChange }: SeedPromptsProps) {
 
       {seeds.length === 0 && (
         <p className="text-xs text-muted-foreground italic py-2">
-          No seed prompts — the engine will generate a diverse initial
-          population automatically.
+          No seed prompts added. The initial population will be generated automatically.
         </p>
       )}
 

@@ -54,60 +54,74 @@ export function FitnessChart({ data }: FitnessChartProps) {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
-          <TrendingUp className="h-4 w-4" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+            <TrendingUp className="h-3.5 w-3.5 text-primary" />
+          </div>
           Fitness Over Generations
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={250}>
-          <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.5} />
+        <ResponsiveContainer width="100%" height={280}>
+          <LineChart
+            data={chartData}
+            margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="currentColor"
+              strokeOpacity={0.08}
+              vertical={false}
+            />
             <XAxis
               dataKey="generation"
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: 11 }}
               tickFormatter={(v) => `Gen ${v}`}
+              stroke="currentColor"
+              strokeOpacity={0.2}
             />
             <YAxis
               domain={[0, 100]}
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: 11 }}
               tickFormatter={(v) => `${v}%`}
+              stroke="currentColor"
+              strokeOpacity={0.2}
+              width={45}
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: "hsl(var(--card))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: "8px",
+                backgroundColor: "var(--color-card)",
+                border: "1px solid var(--color-border)",
+                borderRadius: "12px",
                 fontSize: "12px",
                 padding: "8px 12px",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
               }}
               formatter={(value) => [`${value}%`]}
             />
-            <Legend
-              wrapperStyle={{ fontSize: "12px" }}
-            />
+            <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
             <Line
               type="monotone"
               dataKey="Best"
-              stroke="#22c55e"
+              stroke="oklch(0.62 0.17 145)"
               strokeWidth={2.5}
-              dot={{ r: 5, fill: "#22c55e", strokeWidth: 0 }}
-              activeDot={{ r: 7, fill: "#22c55e" }}
+              dot={{ r: 4, fill: "oklch(0.62 0.17 145)", strokeWidth: 0 }}
+              activeDot={{ r: 6, fill: "oklch(0.62 0.17 145)" }}
             />
             <Line
               type="monotone"
               dataKey="Mean"
-              stroke="#3b82f6"
+              stroke="oklch(0.62 0.17 52)"
               strokeWidth={1.5}
               strokeDasharray="5 5"
-              dot={{ r: 3, fill: "#3b82f6", strokeWidth: 0 }}
+              dot={{ r: 3, fill: "oklch(0.62 0.17 52)", strokeWidth: 0 }}
             />
             <Line
               type="monotone"
               dataKey="Worst"
-              stroke="#ef4444"
+              stroke="oklch(0.577 0.245 27)"
               strokeWidth={1}
               strokeDasharray="3 3"
-              dot={{ r: 2, fill: "#ef4444", strokeWidth: 0 }}
+              dot={{ r: 2, fill: "oklch(0.577 0.245 27)", strokeWidth: 0 }}
             />
           </LineChart>
         </ResponsiveContainer>

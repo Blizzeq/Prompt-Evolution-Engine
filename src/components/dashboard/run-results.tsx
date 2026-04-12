@@ -35,97 +35,119 @@ export function RunResults({ summary }: RunResultsProps) {
   const handleCopy = async () => {
     await navigator.clipboard.writeText(summary.bestPrompt.text);
     setCopied(true);
-    toast.success("Winning prompt copied to clipboard");
+    toast.success("Best prompt copied");
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <Card className="border-green-500/20 bg-green-500/5">
-      <CardHeader>
+    <Card className="border-success/20 overflow-hidden">
+      <div className="h-1 bg-gradient-to-r from-success via-success/60 to-primary/40" />
+      <CardHeader className="pb-4">
         <CardTitle className="flex items-center gap-2">
-          <Trophy className="h-5 w-5 text-yellow-500" />
-          Evolution Complete
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-warning/10">
+            <Trophy className="h-4 w-4 text-warning" />
+          </div>
+          Run complete
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Stats row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-              {(summary.finalBestFitness * 100).toFixed(1)}%
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            {
+              label: "Best score",
+              value: `${(summary.finalBestFitness * 100).toFixed(1)}%`,
+              className: "text-success font-bold",
+            },
+            {
+              label: "Improvement",
+              value: `${summary.improvementPercent > 0 ? "+" : ""}${summary.improvementPercent.toFixed(1)}%`,
+              icon: summary.improvementPercent > 0 ? TrendingUp : undefined,
+              className:
+                summary.improvementPercent > 0
+                  ? "text-success font-bold"
+                  : "font-bold",
+            },
+            {
+              label: "Duration",
+              value: formatDuration(summary.totalDurationMs),
+              icon: Clock,
+              className: "font-bold",
+            },
+            {
+              label: "API Calls",
+              value: String(summary.totalApiCalls),
+              icon: Zap,
+              className: "font-bold",
+            },
+          ].map((stat) => (
+            <div
+              key={stat.label}
+              className="text-center rounded-xl bg-muted/50 p-3"
+            >
+              <div
+                className={`text-xl flex items-center justify-center gap-1 ${stat.className}`}
+              >
+                {stat.icon && (
+                  <stat.icon className="h-4 w-4 text-muted-foreground" />
+                )}
+                {stat.value}
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                {stat.label}
+              </div>
             </div>
-            <div className="text-xs text-muted-foreground">Final Fitness</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold flex items-center justify-center gap-1">
-              {summary.improvementPercent > 0 ? "+" : ""}
-              {summary.improvementPercent.toFixed(1)}%
-              {summary.improvementPercent > 0 && (
-                <TrendingUp className="h-4 w-4 text-green-500" />
-              )}
-            </div>
-            <div className="text-xs text-muted-foreground">Improvement</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold flex items-center justify-center gap-1">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              {formatDuration(summary.totalDurationMs)}
-            </div>
-            <div className="text-xs text-muted-foreground">Duration</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold flex items-center justify-center gap-1">
-              <Zap className="h-4 w-4 text-muted-foreground" />
-              {summary.totalApiCalls}
-            </div>
-            <div className="text-xs text-muted-foreground">API Calls</div>
-          </div>
+          ))}
         </div>
 
         <Separator />
 
-        {/* Fitness comparison */}
-        <div className="flex items-center gap-4 text-sm">
+        <div className="flex items-center gap-4 text-sm flex-wrap">
           <div className="text-center">
-            <Badge variant="secondary">Seed Best</Badge>
-            <div className="mt-1 font-mono">
+            <Badge variant="secondary" className="text-[11px]">
+              Start
+            </Badge>
+            <div className="mt-1 font-mono text-sm">
               {(summary.seedBestFitness * 100).toFixed(1)}%
             </div>
           </div>
           <ArrowRight className="h-4 w-4 text-muted-foreground" />
           <div className="text-center">
-            <Badge variant="default">Final Best</Badge>
-            <div className="mt-1 font-mono font-bold text-green-600 dark:text-green-400">
+            <Badge className="text-[11px]">Final Best</Badge>
+            <div className="mt-1 font-mono text-sm font-bold text-success">
               {(summary.finalBestFitness * 100).toFixed(1)}%
             </div>
           </div>
-          <span className="text-xs text-muted-foreground ml-auto">
+          <span className="text-[11px] text-muted-foreground ml-auto">
             {summary.totalGenerations} generations |{" "}
             {summary.convergenceGeneration
               ? `converged at gen ${summary.convergenceGeneration}`
-              : "no convergence"}
+              : "completed full run"}
           </span>
         </div>
 
         <Separator />
 
-        {/* Winning prompt */}
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-sm font-medium">Winning Prompt</h4>
-            <Button variant="outline" size="sm" onClick={handleCopy}>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-semibold">Best prompt</h4>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopy}
+              className="gap-1.5 text-xs"
+            >
               {copied ? (
                 <>
-                  <Check className="h-3.5 w-3.5 mr-1" /> Copied
+                  <Check className="h-3 w-3" /> Copied
                 </>
               ) : (
                 <>
-                  <Copy className="h-3.5 w-3.5 mr-1" /> Copy
+                  <Copy className="h-3 w-3" /> Copy Prompt
                 </>
               )}
             </Button>
           </div>
-          <pre className="text-sm whitespace-pre-wrap font-mono bg-muted/50 rounded-md p-4 max-h-80 overflow-y-auto">
+          <pre className="text-sm whitespace-pre-wrap font-mono bg-muted/40 rounded-xl p-4 max-h-80 overflow-y-auto border border-border/50 leading-relaxed">
             {summary.bestPrompt.text}
           </pre>
         </div>

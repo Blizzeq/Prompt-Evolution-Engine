@@ -3,7 +3,15 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Square, Loader2, CheckCircle2, XCircle, AlertTriangle, Clock } from "lucide-react";
+import {
+  Square,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Clock,
+  Activity,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { RunStatus, StopReason } from "@/lib/engine/types";
 
@@ -14,18 +22,6 @@ interface RunControlsProps {
   errorMessage: string | null;
 }
 
-const statusConfig: Record<
-  RunStatus,
-  { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode }
-> = {
-  pending: { label: "Pending", variant: "secondary", icon: <Clock className="h-3 w-3" /> },
-  initializing: { label: "Initializing", variant: "secondary", icon: <Loader2 className="h-3 w-3 animate-spin" /> },
-  running: { label: "Running", variant: "default", icon: <Loader2 className="h-3 w-3 animate-spin" /> },
-  completed: { label: "Completed", variant: "outline", icon: <CheckCircle2 className="h-3 w-3" /> },
-  stopped: { label: "Stopped", variant: "secondary", icon: <Square className="h-3 w-3" /> },
-  failed: { label: "Failed", variant: "destructive", icon: <XCircle className="h-3 w-3" /> },
-};
-
 const stopReasonLabels: Record<StopReason, string> = {
   "user-stopped": "Stopped by user",
   "early-convergence": "Early convergence",
@@ -33,16 +29,64 @@ const stopReasonLabels: Record<StopReason, string> = {
   "api-error": "API error",
 };
 
-export function RunControls({ runId, status, stopReason, errorMessage }: RunControlsProps) {
-  const [stopping, setStopping] = useState(false);
-  const { label, variant, icon } = statusConfig[status];
+function StatusBadge({ status }: { status: RunStatus }) {
+  const base = "gap-1.5 px-2.5 py-1 text-[11px]";
 
+  switch (status) {
+    case "completed":
+      return (
+        <Badge variant="outline" className={`${base} bg-success/10 text-success border-success/20`}>
+          <CheckCircle2 className="h-3 w-3" /> Completed
+        </Badge>
+      );
+    case "running":
+      return (
+        <Badge variant="outline" className={`${base} bg-primary/10 text-primary border-primary/20`}>
+          <Activity className="h-3 w-3 animate-pulse" /> Running
+        </Badge>
+      );
+    case "initializing":
+      return (
+        <Badge variant="outline" className={`${base} bg-primary/10 text-primary border-primary/20`}>
+          <Loader2 className="h-3 w-3 animate-spin" /> Initializing
+        </Badge>
+      );
+    case "stopped":
+      return (
+        <Badge variant="secondary" className={base}>
+          <Square className="h-3 w-3" /> Stopped
+        </Badge>
+      );
+    case "failed":
+      return (
+        <Badge variant="outline" className={`${base} bg-destructive/10 text-destructive border-destructive/20`}>
+          <XCircle className="h-3 w-3" /> Failed
+        </Badge>
+      );
+    default:
+      return (
+        <Badge variant="secondary" className={base}>
+          <Clock className="h-3 w-3" /> {status}
+        </Badge>
+      );
+  }
+}
+
+export function RunControls({
+  runId,
+  status,
+  stopReason,
+  errorMessage,
+}: RunControlsProps) {
+  const [stopping, setStopping] = useState(false);
   const isActive = status === "running" || status === "initializing";
 
   const handleStop = async () => {
     setStopping(true);
     try {
-      const res = await fetch(`/api/evolution/${runId}/stop`, { method: "POST" });
+      const res = await fetch(`/api/evolution/${runId}/stop`, {
+        method: "POST",
+      });
       if (!res.ok) {
         const data = await res.json();
         toast.error(data.error ?? "Failed to stop");
@@ -57,20 +101,17 @@ export function RunControls({ runId, status, stopReason, errorMessage }: RunCont
   };
 
   return (
-    <div className="flex items-center gap-3">
-      <Badge variant={variant} className="gap-1.5 px-2.5 py-1">
-        {icon}
-        {label}
-      </Badge>
+    <div className="flex items-center gap-3 flex-wrap">
+      <StatusBadge status={status} />
 
       {stopReason && (
-        <span className="text-xs text-muted-foreground">
+        <span className="text-[11px] text-muted-foreground">
           {stopReasonLabels[stopReason]}
         </span>
       )}
 
       {errorMessage && (
-        <span className="text-xs text-destructive flex items-center gap-1">
+        <span className="text-[11px] text-destructive flex items-center gap-1">
           <AlertTriangle className="h-3 w-3" />
           {errorMessage}
         </span>
@@ -78,18 +119,18 @@ export function RunControls({ runId, status, stopReason, errorMessage }: RunCont
 
       {isActive && (
         <Button
-          variant="destructive"
+          variant="outline"
           size="sm"
           onClick={handleStop}
           disabled={stopping}
-          className="ml-auto"
+          className="ml-auto gap-1.5 border-destructive/20 text-destructive hover:bg-destructive hover:text-destructive-foreground"
         >
           {stopping ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-1" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : (
-            <Square className="h-4 w-4 mr-1" />
+            <Square className="h-3.5 w-3.5" />
           )}
-          Stop
+          Stop Run
         </Button>
       )}
     </div>

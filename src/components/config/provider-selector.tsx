@@ -335,9 +335,9 @@ export function ProviderSelector({ values, onChange, compact }: ProviderSelector
     <div className="space-y-3">
       {!compact && (
         <div>
-          <h2 className="text-lg font-semibold">AI Provider</h2>
+          <h2 className="text-lg font-semibold">Provider</h2>
           <p className="text-sm text-muted-foreground">
-            Choose how to run the LLM for evolution
+            Choose where the run will execute.
           </p>
         </div>
       )}
@@ -365,9 +365,9 @@ export function ProviderSelector({ values, onChange, compact }: ProviderSelector
 
         <TabsContent value="ollama" className="space-y-4 mt-4">
           <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
-            <p className="font-medium">Local inference</p>
+            <p className="font-medium">Local runtime</p>
             <p className="text-xs text-muted-foreground">
-              No API key needed. No rate limits. Requires Ollama running locally.
+              No API key required. Requires a local Ollama instance.
             </p>
           </div>
           {!compact && (
@@ -384,10 +384,10 @@ export function ProviderSelector({ values, onChange, compact }: ProviderSelector
             <Label>Compute Backend</Label>
             <div className="grid grid-cols-2 gap-2">
               {([
-                { mode: "auto" as const, icon: MonitorCog, label: "Auto", desc: "Ollama decides" },
-                { mode: "gpu" as const, icon: Zap, label: "GPU Only", desc: "Fastest on NVIDIA/AMD" },
-                { mode: "cpu" as const, icon: Cpu, label: "CPU Only", desc: "Best for Apple Silicon" },
-                { mode: "hybrid" as const, icon: Cpu, label: "Hybrid", desc: "Custom GPU/CPU split" },
+                { mode: "auto" as const, icon: MonitorCog, label: "Auto", desc: "Choose automatically" },
+                { mode: "gpu" as const, icon: Zap, label: "GPU", desc: "Use available GPU" },
+                { mode: "cpu" as const, icon: Cpu, label: "CPU", desc: "Run on CPU only" },
+                { mode: "hybrid" as const, icon: Cpu, label: "Hybrid", desc: "Set GPU layers manually" },
               ]).map(({ mode, icon: Icon, label, desc }) => (
                 <button
                   key={mode}
@@ -425,9 +425,9 @@ export function ProviderSelector({ values, onChange, compact }: ProviderSelector
 
         <TabsContent value="google-ai-studio" className="space-y-4 mt-4">
           <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
-            <p className="font-medium">Google AI Studio (free tier)</p>
+            <p className="font-medium">Google AI Studio</p>
             <p className="text-xs text-muted-foreground">
-              Free API with rate limits. Get a key at ai.google.dev.
+              Cloud API. Free tier limits apply.
             </p>
           </div>
           <div className="space-y-2">
@@ -443,9 +443,9 @@ export function ProviderSelector({ values, onChange, compact }: ProviderSelector
 
         <TabsContent value="openrouter" className="space-y-4 mt-4">
           <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
-            <p className="font-medium">OpenRouter (100+ models)</p>
+            <p className="font-medium">OpenRouter</p>
             <p className="text-xs text-muted-foreground">
-              Access many models including free ones. Get a key at openrouter.ai.
+              Cloud API with a broad model catalog.
             </p>
           </div>
           <div className="space-y-2">
@@ -475,7 +475,7 @@ export function ProviderSelector({ values, onChange, compact }: ProviderSelector
               onClick={fetchModels}
               disabled={modelsLoading}
             >
-              {values.provider === "ollama" ? "Refresh Models" : "Load Models"}
+              {values.provider === "ollama" ? "Refresh" : "Load"}
             </Button>
           </div>
         </div>
@@ -529,7 +529,7 @@ export function ProviderSelector({ values, onChange, compact }: ProviderSelector
 
         {values.provider !== "ollama" && !values.apiKey.trim() && (
           <p className="text-xs text-muted-foreground">
-            Showing curated presets. Enter an API key and click Load Models to fetch the live catalog.
+            Enter an API key to load the live model catalog.
           </p>
         )}
 
@@ -582,7 +582,7 @@ export function ProviderSelector({ values, onChange, compact }: ProviderSelector
         <div className="flex items-center gap-2 rounded-lg border p-3">
           <div className="flex-1">
             <p className="text-sm font-medium">Ollama is not running</p>
-            <p className="text-xs text-muted-foreground">Start Ollama to use local inference</p>
+            <p className="text-xs text-muted-foreground">Start Ollama to use the local runtime.</p>
           </div>
           <Button size="sm" onClick={startOllama} disabled={isLoading}>
             {actionLoading === "start" ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Power className="h-3.5 w-3.5 mr-1.5" />}
@@ -596,7 +596,7 @@ export function ProviderSelector({ values, onChange, compact }: ProviderSelector
           <div className="flex items-center gap-2">
             <div className="flex-1">
               <p className="text-sm font-medium">Model not found</p>
-              <p className="text-xs text-muted-foreground">Pull {values.modelId} from Ollama registry</p>
+              <p className="text-xs text-muted-foreground">Pull {values.modelId} from the Ollama registry.</p>
             </div>
             <Button size="sm" onClick={pullModel} disabled={isLoading}>
               {actionLoading === "pull" ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1.5" />}
@@ -618,7 +618,7 @@ export function ProviderSelector({ values, onChange, compact }: ProviderSelector
       {/* Delay */}
       {!compact && (
         <div className="space-y-2">
-          <Label>Delay Between Calls: {values.delayBetweenCalls}ms</Label>
+          <Label>Call Delay: {values.delayBetweenCalls}ms</Label>
           <Input
             type="number"
             min={0}
@@ -629,7 +629,7 @@ export function ProviderSelector({ values, onChange, compact }: ProviderSelector
             className="w-32"
           />
           <p className="text-xs text-muted-foreground">
-            {values.provider === "ollama" ? "No delay needed for local inference" : "Recommended: 4200ms for free tier rate limits"}
+            {values.provider === "ollama" ? "No delay is usually needed locally." : "Use a delay if the provider has free-tier rate limits."}
           </p>
         </div>
       )}

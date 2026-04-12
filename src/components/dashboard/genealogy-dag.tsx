@@ -358,7 +358,7 @@ export function GenealogyDag({ runId }: { runId: string }) {
             </div>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Click on any node to view the full prompt. Drag to rearrange. Scroll to zoom.
+            Select a node to inspect the prompt. Drag to pan. Scroll to zoom.
           </p>
         </CardHeader>
         <CardContent className="p-0">

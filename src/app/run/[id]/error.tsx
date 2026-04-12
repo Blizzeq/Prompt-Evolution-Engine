@@ -21,7 +21,7 @@ export default function RunError({
       <AlertTriangle className="h-12 w-12 text-destructive" />
       <h2 className="text-xl font-semibold">Failed to load run</h2>
       <p className="text-sm text-muted-foreground max-w-md text-center">
-        {error.message || "Could not load evolution run data."}
+        {error.message || "Could not load run data."}
       </p>
       <div className="flex gap-2">
         <Button onClick={reset}>Retry</Button>
