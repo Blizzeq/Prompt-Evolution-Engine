@@ -45,7 +45,7 @@ export function PresetSelector({
           return (
             <Card
               key={preset.id}
-              className={`p-4 cursor-pointer transition-all hover:border-primary/50 hover:shadow-sm ${
+              className={`flex flex-col p-4 cursor-pointer transition-all hover:border-primary/50 hover:shadow-sm ${
                 isSelected
                   ? "border-primary bg-primary/5 ring-1 ring-primary/20"
                   : ""
@@ -62,12 +62,12 @@ export function PresetSelector({
                   <h3 className="font-medium text-sm leading-tight">
                     {preset.name}
                   </h3>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                     {preset.description}
                   </p>
                 </div>
               </div>
-              <div className="flex gap-1.5 mt-3">
+              <div className="flex gap-1.5 mt-auto pt-3">
                 <Badge variant="secondary" className="text-[10px]">
                   {preset.testCases.length} tests
                 </Badge>

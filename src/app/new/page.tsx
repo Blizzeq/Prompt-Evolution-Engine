@@ -2,11 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence, type Variants } from "framer-motion";
+import { AnimatePresence, motion, type Variants } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { PresetSelector } from "@/components/config/preset-selector";
 import { TaskInput } from "@/components/config/task-input";
@@ -23,20 +22,10 @@ import {
   ProviderSelector,
   type ProviderConfig,
 } from "@/components/config/provider-selector";
-import {
-  Activity,
-  BrainCircuit,
-  ChevronRight,
-  Loader2,
-  Play,
-  Sparkles,
-  Settings2,
-  Wand2,
-  Info,
-  Zap,
-} from "lucide-react";
+import { Loader2, Play, Settings2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import type { TaskPreset, MutationType } from "@/lib/engine/types";
+import { cn } from "@/lib/utils";
 
 const ALL_MUTATION_STRATEGIES: MutationType[] = [
   "rephrase",
@@ -93,51 +82,21 @@ function estimateApiCalls(
 
 type Mode = "quick" | "advanced";
 
-const pageVariants: Variants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.4 },
-  },
-};
-
 const sectionVariants: Variants = {
-  hidden: { opacity: 0, y: 12 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.35 },
-  },
-  exit: {
-    opacity: 0,
-    y: -8,
-    transition: { duration: 0.2 },
-  },
-};
-
-const MODE_COPY = {
-  quick: {
-    title: "Quick setup",
-    description: "Prompt, context, provider, and two tuning controls.",
-  },
-  advanced: {
-    title: "Advanced setup",
-    description: "Presets, test cases, seed prompts, and full search settings.",
-  },
+  hidden: { opacity: 0, y: 8 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.25 } },
+  exit: { opacity: 0, y: -6, transition: { duration: 0.15 } },
 };
 
 export default function NewRunPage() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("quick");
 
-  // Quick mode state
   const [userPrompt, setUserPrompt] = useState("");
   const [context, setContext] = useState("");
   const [quickGenerations, setQuickGenerations] = useState(5);
   const [quickPopulationSize, setQuickPopulationSize] = useState(6);
 
-  // Advanced mode state
   const [presets, setPresets] = useState<TaskPreset[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [taskDescription, setTaskDescription] = useState("");
@@ -149,7 +108,6 @@ export default function NewRunPage() {
   const [seedPrompts, setSeedPrompts] = useState<string[]>([]);
   const [config, setConfig] = useState<EvolutionConfigValues>(DEFAULT_CONFIG);
 
-  // Shared
   const [provider, setProvider] = useState<ProviderConfig>(DEFAULT_PROVIDER);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -183,8 +141,7 @@ export default function NewRunPage() {
     if (userPrompt.length < 5)
       newErrors.prompt = "Enter a prompt to optimize (at least 5 characters)";
     if (context.length < 10)
-      newErrors.context =
-        "Describe what the prompt should do (at least 10 characters)";
+      newErrors.context = "Describe what the prompt should do (at least 10 characters)";
     if (provider.provider !== "ollama" && !provider.apiKey.trim())
       newErrors.provider = "API key is required for cloud providers";
     setErrors(newErrors);
@@ -201,8 +158,7 @@ export default function NewRunPage() {
       (tc) => tc.input.trim() && tc.expectedOutput.trim()
     );
     if (validTestCases.length < 3)
-      newErrors.testCases =
-        "At least 3 complete test cases required (input + expected output)";
+      newErrors.testCases = "At least 3 complete test cases required (input + expected output)";
     const nonEmptySeeds = seedPrompts.filter((s) => s.trim());
     for (const seed of nonEmptySeeds) {
       if (!seed.includes("{input}")) {
@@ -285,247 +241,144 @@ export default function NewRunPage() {
       ? estimateApiCalls(quickPopulationSize, quickGenerations, provider.provider)
       : estimateApiCalls(config.populationSize, config.generations, provider.provider);
 
-  const modeCopy = MODE_COPY[mode];
-
   return (
     <motion.div
-      className="space-y-6 pb-20 lg:space-y-8"
-      variants={pageVariants}
-      initial="hidden"
-      animate="visible"
+      className="mx-auto max-w-4xl space-y-6 pb-12"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
     >
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_24rem]">
-        <div className="panel-strong hero-gradient relative overflow-hidden rounded-[2rem] px-6 py-7 sm:px-8 sm:py-9 lg:px-10 lg:py-11">
-          <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-1/2 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.24),transparent_65%)] lg:block" />
-          <div className="relative z-10 max-w-3xl space-y-6">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="border-primary/20 bg-primary/10 text-primary">
-                <Sparkles className="h-3 w-3" />
-                Run setup
-              </Badge>
-              <Badge variant="secondary">{modeCopy.title}</Badge>
-            </div>
+      {/* Mode tabs */}
+      <div className="flex gap-1 rounded-lg border border-border/40 bg-card/80 p-1">
+        {([
+          { id: "quick" as const, label: "Quick setup", icon: Wand2 },
+          { id: "advanced" as const, label: "Advanced setup", icon: Settings2 },
+        ]).map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setMode(tab.id)}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
+              mode === tab.id
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <tab.icon className="h-3.5 w-3.5" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-            <div className="space-y-4">
-              <h1 className="text-[2.2rem] font-semibold leading-[0.98] tracking-[-0.08em] text-foreground sm:text-[3rem] lg:text-[4rem]">
-                Configure a run and start the search.
-              </h1>
-              <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-                {modeCopy.description}
+      {/* Form content */}
+      <AnimatePresence mode="wait">
+        {mode === "quick" ? (
+          <motion.div
+            key="quick"
+            className="space-y-4"
+            variants={sectionVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
+            {/* Prompt */}
+            <div className="rounded-xl border border-border/40 bg-card/80 p-5">
+              <Label className="text-sm font-medium">Prompt</Label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Paste the prompt you want to optimize.
               </p>
+              <Textarea
+                value={userPrompt}
+                onChange={(e) => {
+                  setUserPrompt(e.target.value);
+                  setErrors((prev) => ({ ...prev, prompt: "" }));
+                }}
+                placeholder={`Enter the prompt you want to optimize...\n\nExample: You are a helpful assistant that classifies text sentiment.\n\nText: {input}\nSentiment:`}
+                rows={5}
+                className="mt-3 font-mono text-sm resize-none"
+              />
+              {errors.prompt && (
+                <p className="mt-2 text-xs text-destructive">{errors.prompt}</p>
+              )}
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="panel-soft rounded-[1.35rem] p-4">
-                <p className="section-kicker">Strategies</p>
-                <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-foreground">
-                  {ALL_MUTATION_STRATEGIES.length}
-                </p>
-              </div>
-              <div className="panel-soft rounded-[1.35rem] p-4">
-                <p className="section-kicker">Presets</p>
-                <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-foreground">
-                  {presets.length}
-                </p>
-              </div>
-              <div className="panel-soft rounded-[1.35rem] p-4">
-                <p className="section-kicker">Est. calls</p>
-                <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-foreground">
-                  ~{estCalls}
-                </p>
+            {/* Context */}
+            <div className="rounded-xl border border-border/40 bg-card/80 p-5">
+              <Label className="text-sm font-medium">Context</Label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Goals, constraints, audience, or output rules.
+              </p>
+              <Textarea
+                value={context}
+                onChange={(e) => {
+                  setContext(e.target.value);
+                  setErrors((prev) => ({ ...prev, context: "" }));
+                }}
+                placeholder="Describe what the prompt should do, its goals, and any constraints..."
+                rows={3}
+                className="mt-3 resize-none"
+              />
+              {errors.context && (
+                <p className="mt-2 text-xs text-destructive">{errors.context}</p>
+              )}
+            </div>
+
+            {/* Tuning */}
+            <div className="rounded-xl border border-border/40 bg-card/80 p-5">
+              <Label className="text-sm font-medium">Tuning</Label>
+              <div className="mt-4 grid gap-6 sm:grid-cols-2">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Generations</span>
+                    <span className="font-mono text-xs tabular-nums text-foreground">
+                      {quickGenerations}
+                    </span>
+                  </div>
+                  <Slider
+                    value={[quickGenerations]}
+                    onValueChange={(value) => setQuickGenerations(value[0])}
+                    min={3}
+                    max={20}
+                    step={1}
+                  />
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Population size</span>
+                    <span className="font-mono text-xs tabular-nums text-foreground">
+                      {quickPopulationSize}
+                    </span>
+                  </div>
+                  <Slider
+                    value={[quickPopulationSize]}
+                    onValueChange={(value) => setQuickPopulationSize(value[0])}
+                    min={4}
+                    max={16}
+                    step={2}
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="advanced"
+            className="space-y-4"
+            variants={sectionVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+          >
+            <div className="rounded-xl border border-border/40 bg-card/80 p-5">
+              <PresetSelector
+                presets={presets}
+                selectedId={selectedPresetId}
+                onSelect={handlePresetSelect}
+              />
+            </div>
 
-        <div className="panel rounded-[1.75rem] p-5 sm:p-6">
-          <p className="section-kicker">Setup mode</p>
-          <h2 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-foreground">
-            Choose your level of control
-          </h2>
-
-          <div className="mt-5 grid gap-3">
-            <button
-              type="button"
-              onClick={() => setMode("quick")}
-              className={`rounded-[1.35rem] border px-4 py-4 text-left transition-all ${
-                mode === "quick"
-                  ? "border-primary/25 bg-primary/10 shadow-glow"
-                  : "border-white/10 bg-white/[0.04] hover:border-primary/15 dark:border-white/6 dark:bg-white/[0.03]"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <Wand2 className="h-4 w-4 text-primary" />
-                    Quick setup
-                  </div>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    Prompt, context, provider, and two core tuning controls.
-                  </p>
-                </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setMode("advanced")}
-              className={`rounded-[1.35rem] border px-4 py-4 text-left transition-all ${
-                mode === "advanced"
-                  ? "border-primary/25 bg-primary/10 shadow-glow"
-                  : "border-white/10 bg-white/[0.04] hover:border-primary/15 dark:border-white/6 dark:bg-white/[0.03]"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <Settings2 className="h-4 w-4 text-primary" />
-                    Advanced setup
-                  </div>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    Presets, full test editing, seed prompts, and search configuration.
-                  </p>
-                </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-              </div>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
-        <AnimatePresence mode="wait">
-          {mode === "quick" && (
-            <motion.div
-              key="quick"
-              className="space-y-4"
-              variants={sectionVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-            >
-              <div className="panel rounded-[1.75rem] p-5 sm:p-6">
-                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  Prompt
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Paste the prompt you want to optimize.
-                </p>
-
-                <div className="mt-5 space-y-2">
-                  <Textarea
-                    value={userPrompt}
-                    onChange={(e) => {
-                      setUserPrompt(e.target.value);
-                      setErrors((prev) => ({ ...prev, prompt: "" }));
-                    }}
-                    placeholder={`Enter the prompt you want to optimize...\n\nExample: You are a helpful assistant that classifies text sentiment.\n\nText: {input}\nSentiment:`}
-                    rows={6}
-                    className="font-mono text-sm resize-none"
-                  />
-                  {errors.prompt ? (
-                    <p className="text-xs text-destructive">{errors.prompt}</p>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="panel rounded-[1.75rem] p-5 sm:p-6">
-                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <Info className="h-4 w-4 text-primary" />
-                  Context
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Add goals, constraints, audience, or output rules.
-                </p>
-
-                <div className="mt-5 space-y-2">
-                  <Textarea
-                    value={context}
-                    onChange={(e) => {
-                      setContext(e.target.value);
-                      setErrors((prev) => ({ ...prev, context: "" }));
-                    }}
-                    placeholder="Describe what the prompt should do, its goals, and any constraints..."
-                    rows={4}
-                    className="resize-none"
-                  />
-                  {errors.context ? (
-                    <p className="text-xs text-destructive">{errors.context}</p>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="panel-grid panel rounded-[1.75rem] p-5 sm:p-6">
-                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <BrainCircuit className="h-4 w-4 text-primary" />
-                  Tuning
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Set search depth and run size.
-                </p>
-
-                <div className="mt-6 grid gap-6 sm:grid-cols-2">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm">Generations</Label>
-                      <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                        {quickGenerations}
-                      </span>
-                    </div>
-                    <Slider
-                      value={[quickGenerations]}
-                      onValueChange={(value) => setQuickGenerations(value[0])}
-                      min={3}
-                      max={20}
-                      step={1}
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      More generations usually improve results, but increase run time.
-                    </p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm">Population size</Label>
-                      <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                        {quickPopulationSize}
-                      </span>
-                    </div>
-                    <Slider
-                      value={[quickPopulationSize]}
-                      onValueChange={(value) => setQuickPopulationSize(value[0])}
-                      min={4}
-                      max={16}
-                      step={2}
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      Larger populations explore more variants per generation.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {mode === "advanced" && (
-            <motion.div
-              key="advanced"
-              className="space-y-4"
-              variants={sectionVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-            >
-              <div className="panel rounded-[1.75rem] p-5 sm:p-6">
-                <PresetSelector
-                  presets={presets}
-                  selectedId={selectedPresetId}
-                  onSelect={handlePresetSelect}
-                />
-              </div>
-
+            <div className="rounded-xl border border-border/40 bg-card/80 p-5">
               <TaskInput
                 value={taskDescription}
                 onChange={(value) => {
@@ -534,7 +387,9 @@ export default function NewRunPage() {
                 }}
                 error={errors.task}
               />
+            </div>
 
+            <div className="rounded-xl border border-border/40 bg-card/80 p-5">
               <TestCaseEditor
                 testCases={testCases}
                 onChange={(value) => {
@@ -543,115 +398,76 @@ export default function NewRunPage() {
                 }}
                 error={errors.testCases}
               />
+            </div>
 
-              <div className="space-y-2">
-                <SeedPrompts
-                  seeds={seedPrompts}
-                  onChange={(value) => {
-                    setSeedPrompts(value);
-                    setSelectedPresetId(null);
-                  }}
-                />
-                {errors.seeds ? (
-                  <p className="px-1 text-xs text-destructive">{errors.seeds}</p>
-                ) : null}
-              </div>
-
-              <div className="space-y-2">
-                <EvolutionConfig values={config} onChange={setConfig} />
-                {errors.config ? (
-                  <p className="px-1 text-xs text-destructive">{errors.config}</p>
-                ) : null}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <motion.aside
-          className="space-y-4 xl:sticky xl:top-24"
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12, duration: 0.35 }}
-        >
-          <div className="panel rounded-[1.75rem] p-5 sm:p-6">
-            <p className="section-kicker">Execution</p>
-            <h2 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-foreground">
-              Provider and model
-            </h2>
-            <div className="mt-5">
-              <ProviderSelector
-                values={provider}
-                onChange={setProvider}
-                compact={mode === "quick"}
+            <div className="rounded-xl border border-border/40 bg-card/80 p-5 space-y-2">
+              <SeedPrompts
+                seeds={seedPrompts}
+                onChange={(value) => {
+                  setSeedPrompts(value);
+                  setSelectedPresetId(null);
+                }}
               />
-            </div>
-            {errors.provider ? (
-              <p className="mt-3 text-xs text-destructive">{errors.provider}</p>
-            ) : null}
-          </div>
-
-          <div className="panel-grid panel rounded-[1.75rem] p-5 sm:p-6">
-            <p className="section-kicker">Run summary</p>
-            <h2 className="mt-2 text-xl font-semibold tracking-[-0.04em] text-foreground">
-              Start run
-            </h2>
-
-            <div className="mt-5 space-y-3 text-sm text-muted-foreground">
-              <div className="flex items-center justify-between rounded-[1.15rem] border border-white/10 bg-white/[0.04] px-4 py-3 dark:border-white/6 dark:bg-white/[0.03]">
-                <span className="flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-primary" />
-                  Mode
-                </span>
-                <span className="font-medium text-foreground">{modeCopy.title}</span>
-              </div>
-              <div className="flex items-center justify-between rounded-[1.15rem] border border-white/10 bg-white/[0.04] px-4 py-3 dark:border-white/6 dark:bg-white/[0.03]">
-                <span className="flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-primary" />
-                  Runtime
-                </span>
-                <span className="font-medium text-foreground">
-                  {provider.provider} / {provider.modelId}
-                </span>
-              </div>
-              <div className="flex items-center justify-between rounded-[1.15rem] border border-white/10 bg-white/[0.04] px-4 py-3 dark:border-white/6 dark:bg-white/[0.03]">
-                <span>Estimated API calls</span>
-                <span className="font-mono text-foreground">~{estCalls}</span>
-              </div>
-            </div>
-
-            <div className="mt-5 rounded-[1.25rem] border border-primary/10 bg-primary/[0.06] p-4 text-sm leading-relaxed text-muted-foreground">
-              {mode === "quick"
-                ? `About ${quickPopulationSize} candidates across ${quickGenerations} generations.`
-                : "Uses explicit tests and seed prompts for more controlled comparisons."}
-            </div>
-
-            <Button
-              size="lg"
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="mt-5 w-full gap-2"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Starting...
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4" />
-                  Start run
-                </>
+              {errors.seeds && (
+                <p className="px-1 text-xs text-destructive">{errors.seeds}</p>
               )}
-            </Button>
+            </div>
 
-            {provider.provider === "openrouter" ? (
-              <p className="mt-3 text-[11px] text-warning">
-                OpenRouter free models may be rate-limited. Keep an eye on the estimated request volume.
-              </p>
-            ) : null}
-          </div>
-        </motion.aside>
-      </section>
+            <div className="rounded-xl border border-border/40 bg-card/80 p-5 space-y-2">
+              <EvolutionConfig values={config} onChange={setConfig} />
+              {errors.config && (
+                <p className="px-1 text-xs text-destructive">{errors.config}</p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Provider */}
+      <div className="rounded-xl border border-border/40 bg-card/80 p-5">
+        <Label className="text-sm font-medium">Provider and model</Label>
+        <div className="mt-3">
+          <ProviderSelector
+            values={provider}
+            onChange={setProvider}
+            compact={mode === "quick"}
+          />
+        </div>
+        {errors.provider && (
+          <p className="mt-2 text-xs text-destructive">{errors.provider}</p>
+        )}
+      </div>
+
+      {/* Start */}
+      <div className="flex items-center justify-between rounded-xl border border-border/40 bg-card/80 p-5">
+        <div className="text-sm text-muted-foreground">
+          ~{estCalls} API calls &middot; {mode === "quick" ? quickPopulationSize : config.populationSize} candidates &middot; {mode === "quick" ? quickGenerations : config.generations} generations
+        </div>
+        <Button
+          size="lg"
+          onClick={handleSubmit}
+          disabled={submitting}
+          className="gap-2"
+        >
+          {submitting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Starting...
+            </>
+          ) : (
+            <>
+              <Play className="h-4 w-4" />
+              Start run
+            </>
+          )}
+        </Button>
+      </div>
+
+      {provider.provider === "openrouter" && (
+        <p className="text-xs text-warning">
+          OpenRouter free models may be rate-limited.
+        </p>
+      )}
     </motion.div>
   );
 }

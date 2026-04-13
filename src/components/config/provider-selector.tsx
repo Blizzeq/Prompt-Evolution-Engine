@@ -72,6 +72,28 @@ function presetModelsFor(provider: Provider): ModelOption[] {
   }));
 }
 
+const API_KEY_STORAGE_PREFIX = "pee_apikey_";
+
+function loadSavedApiKey(provider: Provider): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return localStorage.getItem(`${API_KEY_STORAGE_PREFIX}${provider}`) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function saveApiKey(provider: Provider, key: string) {
+  if (typeof window === "undefined") return;
+  try {
+    if (key.trim()) {
+      localStorage.setItem(`${API_KEY_STORAGE_PREFIX}${provider}`, key);
+    } else {
+      localStorage.removeItem(`${API_KEY_STORAGE_PREFIX}${provider}`);
+    }
+  } catch { /* quota exceeded or private browsing */ }
+}
+
 export function ProviderSelector({ values, onChange, compact }: ProviderSelectorProps) {
   const [healthStatus, setHealthStatus] = useState<HealthStatus>("idle");
   const [healthMessage, setHealthMessage] = useState("");
@@ -81,6 +103,7 @@ export function ProviderSelector({ values, onChange, compact }: ProviderSelector
   const abortRef = useRef<AbortController | null>(null);
   const modelRequestRef = useRef<AbortController | null>(null);
   const modelRequestIdRef = useRef(0);
+  const initializedRef = useRef(false);
 
   // Dynamic model list
   const [models, setModels] = useState<ModelOption[]>(() =>
@@ -89,8 +112,24 @@ export function ProviderSelector({ values, onChange, compact }: ProviderSelector
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelFilter, setModelFilter] = useState("");
 
-  const update = (partial: Partial<ProviderConfig>) =>
+  const update = (partial: Partial<ProviderConfig>) => {
+    if (partial.apiKey !== undefined) {
+      saveApiKey(partial.provider ?? values.provider, partial.apiKey);
+    }
     onChange({ ...values, ...partial });
+  };
+
+  // Load saved API key on mount
+  useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+    if (values.provider !== "ollama" && !values.apiKey) {
+      const saved = loadSavedApiKey(values.provider);
+      if (saved) {
+        onChange({ ...values, apiKey: saved });
+      }
+    }
+  }, []);
 
   useEffect(() => {
     setModels(presetModelsFor(values.provider));
@@ -347,11 +386,12 @@ export function ProviderSelector({ values, onChange, compact }: ProviderSelector
         onValueChange={(v) => {
           if (!v) return;
           const provider = v as Provider;
+          const savedKey = provider !== "ollama" ? loadSavedApiKey(provider) : "";
           update({
             provider,
             modelId: DEFAULT_MODELS[provider],
             delayBetweenCalls: provider === "ollama" ? 0 : 4200,
-            apiKey: "",
+            apiKey: savedKey,
           });
           setHealthStatus("idle");
           setHealthMessage("");
@@ -497,7 +537,7 @@ export function ProviderSelector({ values, onChange, compact }: ProviderSelector
           value={values.modelId}
           onValueChange={(v) => { if (v) update({ modelId: v }); }}
         >
-          <SelectTrigger>
+          <SelectTrigger className="w-full">
             <SelectValue placeholder="Select model..." />
           </SelectTrigger>
           <SelectContent className="max-h-[300px]">
@@ -509,7 +549,7 @@ export function ProviderSelector({ values, onChange, compact }: ProviderSelector
               filteredModels.map((model) => (
                 <SelectItem key={model.id} value={model.id}>
                   <div className="flex items-center gap-2">
-                    <span className="truncate max-w-[250px]">{model.name}</span>
+                    <span>{model.name}</span>
                     {model.free && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-600 shrink-0">
                         free

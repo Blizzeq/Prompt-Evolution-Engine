@@ -5,7 +5,6 @@ import {
   ReactFlow,
   Background,
   Controls,
-  MiniMap,
   Handle,
   Position,
   useNodesState,
@@ -18,7 +17,6 @@ import {
 import dagre from "dagre";
 import "@xyflow/react/dist/style.css";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { GitBranch, Copy, Check, Dna, Shuffle, Star, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import type { Prompt, PromptOrigin } from "@/lib/engine/types";
 
 // ─── Node data type ───
@@ -46,40 +45,32 @@ interface PromptNodeData {
 
 // ─── Helpers ───
 
-function originBg(origin: PromptOrigin): string {
+function originStyle(origin: PromptOrigin) {
   switch (origin.type) {
-    case "seed": return "border-blue-400 bg-blue-50 dark:bg-blue-950/40";
-    case "crossover": return "border-purple-400 bg-purple-50 dark:bg-purple-950/40";
-    case "mutation": return "border-orange-400 bg-orange-50 dark:bg-orange-950/40";
-    case "elite": return "border-yellow-400 bg-yellow-50 dark:bg-yellow-950/40";
-  }
-}
-
-function originMiniMapColor(origin: PromptOrigin): string {
-  switch (origin.type) {
-    case "seed": return "#3b82f6";
-    case "crossover": return "#a855f7";
-    case "mutation": return "#f97316";
-    case "elite": return "#eab308";
+    case "seed": return { border: "border-blue-400/60", bg: "bg-blue-50 dark:bg-blue-950/30", accent: "#3b82f6", text: "text-blue-600 dark:text-blue-400" };
+    case "crossover": return { border: "border-purple-400/60", bg: "bg-purple-50 dark:bg-purple-950/30", accent: "#a855f7", text: "text-purple-600 dark:text-purple-400" };
+    case "mutation": return { border: "border-orange-400/60", bg: "bg-orange-50 dark:bg-orange-950/30", accent: "#f97316", text: "text-orange-600 dark:text-orange-400" };
+    case "elite": return { border: "border-yellow-400/60", bg: "bg-yellow-50 dark:bg-yellow-950/30", accent: "#eab308", text: "text-yellow-600 dark:text-yellow-400" };
   }
 }
 
 function originIcon(origin: PromptOrigin) {
+  const s = originStyle(origin);
   switch (origin.type) {
-    case "seed": return <Sparkles className="h-3 w-3 text-blue-500" />;
-    case "crossover": return <Shuffle className="h-3 w-3 text-purple-500" />;
-    case "mutation": return <Dna className="h-3 w-3 text-orange-500" />;
-    case "elite": return <Star className="h-3 w-3 text-yellow-500" />;
+    case "seed": return <Sparkles className={cn("h-3 w-3", s.text)} />;
+    case "crossover": return <Shuffle className={cn("h-3 w-3", s.text)} />;
+    case "mutation": return <Dna className={cn("h-3 w-3", s.text)} />;
+    case "elite": return <Star className={cn("h-3 w-3", s.text)} />;
   }
 }
 
 function originLabel(origin: PromptOrigin): string {
   switch (origin.type) {
     case "seed": return origin.source === "user" ? "User Seed" : "Generated";
-    case "crossover": return `Crossover`;
+    case "crossover": return "Crossover";
     case "mutation": {
       const mt = origin.mutationType.replace(/-/g, " ");
-      return `Mutation (${mt})`;
+      return mt.charAt(0).toUpperCase() + mt.slice(1);
     }
     case "elite": return "Elite";
   }
@@ -90,6 +81,13 @@ function fitnessColor(fitness: number): string {
   if (fitness >= 0.7) return "text-blue-600 dark:text-blue-400";
   if (fitness >= 0.4) return "text-orange-600 dark:text-orange-400";
   return "text-red-600 dark:text-red-400";
+}
+
+function fitnessBg(fitness: number): string {
+  if (fitness >= 0.9) return "bg-green-500";
+  if (fitness >= 0.7) return "bg-blue-500";
+  if (fitness >= 0.4) return "bg-orange-500";
+  return "bg-red-500";
 }
 
 function getParentIds(origin: PromptOrigin): string[] {
@@ -104,52 +102,61 @@ function getParentIds(origin: PromptOrigin): string[] {
 // ─── Custom Node Component ───
 
 function PromptNode({ data }: NodeProps<Node<PromptNodeData>>) {
-  const preview = data.promptText.length > 100
-    ? data.promptText.slice(0, 100) + "..."
+  const s = originStyle(data.origin);
+  const preview = data.promptText.length > 80
+    ? data.promptText.slice(0, 80) + "..."
     : data.promptText;
 
   return (
     <div
-      className={`
-        rounded-lg border-2 px-3 py-2 shadow-sm w-[200px] transition-shadow
-        hover:shadow-md cursor-pointer select-none
-        ${originBg(data.origin)}
-        ${data.isBest ? "ring-2 ring-green-500 ring-offset-1 ring-offset-background" : ""}
-      `}
+      className={cn(
+        "rounded-xl border bg-background px-3.5 py-3 shadow-sm w-[240px] transition-all",
+        "hover:shadow-md cursor-pointer select-none",
+        s.border, s.bg,
+        data.isBest && "ring-2 ring-green-500/70 ring-offset-2 ring-offset-background shadow-green-500/10",
+      )}
     >
-      <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-muted-foreground/40" />
+      <Handle type="target" position={Position.Top} className="!w-2 !h-2 !border-none !bg-muted-foreground/30" />
 
-      <div className="flex items-center gap-1.5 mb-1">
-        {originIcon(data.origin)}
-        <span className="text-[10px] font-semibold uppercase tracking-wider opacity-70">
-          {originLabel(data.origin)}
-        </span>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="flex items-center gap-1.5">
+          {originIcon(data.origin)}
+          <span className={cn("text-[10px] font-semibold uppercase tracking-wider", s.text)}>
+            {originLabel(data.origin)}
+          </span>
+        </div>
         {data.isBest && (
-          <Badge className="text-[9px] px-1 py-0 h-3.5 bg-green-500 text-white ml-auto">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-green-600 dark:text-green-400">
             Best
-          </Badge>
+          </span>
         )}
       </div>
 
-      <p className="text-[11px] leading-snug font-mono opacity-60 line-clamp-3 mb-1.5 break-words">
+      <p className="text-[11px] leading-relaxed text-muted-foreground line-clamp-2 mb-2.5 break-words">
         {preview}
       </p>
 
-      <div className={`text-xs font-bold ${fitnessColor(data.fitness)}`}>
-        {(data.fitness * 100).toFixed(1)}%
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-muted-foreground/60">Gen {data.generation}</span>
+        <div className="flex items-center gap-1.5">
+          <div className={cn("h-1.5 rounded-full", fitnessBg(data.fitness))} style={{ width: `${Math.max(data.fitness * 40, 4)}px` }} />
+          <span className={cn("text-xs font-semibold tabular-nums", fitnessColor(data.fitness))}>
+            {(data.fitness * 100).toFixed(0)}%
+          </span>
+        </div>
       </div>
 
-      <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-muted-foreground/40" />
+      <Handle type="source" position={Position.Bottom} className="!w-2 !h-2 !border-none !bg-muted-foreground/30" />
     </div>
   );
 }
 
 const nodeTypes = { prompt: PromptNode };
 
-// ─── Dagre Layout ───
+// ─── Dagre Layout (top-to-bottom) ───
 
-const NODE_WIDTH = 200;
-const NODE_HEIGHT = 110;
+const NODE_WIDTH = 240;
+const NODE_HEIGHT = 100;
 
 function layoutWithDagre(
   nodes: Node<PromptNodeData>[],
@@ -158,11 +165,11 @@ function layoutWithDagre(
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({
-    rankdir: "LR",
-    nodesep: 30,
-    ranksep: 80,
-    marginx: 20,
-    marginy: 20,
+    rankdir: "TB",
+    nodesep: 40,
+    ranksep: 60,
+    marginx: 40,
+    marginy: 40,
   });
 
   for (const node of nodes) {
@@ -188,7 +195,7 @@ function layoutWithDagre(
   return { nodes: layoutedNodes, edges };
 }
 
-// ─── Flow Wrapper (needs ReactFlowProvider) ───
+// ─── Flow Wrapper ───
 
 function GenealogyFlowInner({
   prompts,
@@ -197,7 +204,6 @@ function GenealogyFlowInner({
   prompts: Prompt[];
   onNodeClick: (prompt: Prompt) => void;
 }) {
-  // Find best prompt
   let bestId: string | null = null;
   let bestFitness = -1;
   for (const p of prompts) {
@@ -207,7 +213,6 @@ function GenealogyFlowInner({
     }
   }
 
-  // Build nodes and edges
   const { initialNodes, initialEdges } = useMemo(() => {
     const nodes: Node<PromptNodeData>[] = prompts.map((p) => ({
       id: p.id,
@@ -229,19 +234,23 @@ function GenealogyFlowInner({
       const parentIds = getParentIds(p.origin);
       for (const parentId of parentIds) {
         const edgeId = `${parentId}->${p.id}`;
-        // Skip duplicates and edges to non-existent parents
         if (edgeIds.has(edgeId)) continue;
         if (!prompts.some((pp) => pp.id === parentId)) continue;
         edgeIds.add(edgeId);
+
+        const isBestPath = p.id === bestId;
+        const s = originStyle(p.origin);
+
         edges.push({
           id: edgeId,
           source: parentId,
           target: p.id,
           type: "smoothstep",
-          animated: p.id === bestId,
+          animated: isBestPath,
           style: {
-            stroke: p.id === bestId ? "#22c55e" : "#94a3b8",
-            strokeWidth: p.id === bestId ? 2 : 1,
+            stroke: isBestPath ? "#22c55e" : s.accent,
+            strokeWidth: isBestPath ? 2.5 : 1.5,
+            opacity: isBestPath ? 1 : 0.5,
           },
         });
       }
@@ -271,24 +280,16 @@ function GenealogyFlowInner({
       onNodeClick={handleNodeClick}
       nodeTypes={nodeTypes}
       fitView
-      fitViewOptions={{ padding: 0.2 }}
-      minZoom={0.3}
+      fitViewOptions={{ padding: 0.15 }}
+      minZoom={0.2}
       maxZoom={1.5}
       proOptions={{ hideAttribution: true }}
       nodesDraggable={true}
       nodesConnectable={false}
       elementsSelectable={true}
     >
-      <Background gap={16} size={1} />
-      <Controls showInteractive={false} />
-      <MiniMap
-        nodeColor={(node) => {
-          const data = node.data as PromptNodeData;
-          return originMiniMapColor(data.origin);
-        }}
-        maskColor="rgba(0,0,0,0.1)"
-        className="!bg-background !border-border"
-      />
+      <Background gap={20} size={1} color="var(--color-border)" style={{ opacity: 0.3 }} />
+      <Controls showInteractive={false} className="!border-border !bg-card !shadow-sm [&>button]:!border-border [&>button]:!bg-card" />
     </ReactFlow>
   );
 }
@@ -318,75 +319,71 @@ export function GenealogyDag({ runId }: { runId: string }) {
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <GitBranch className="h-4 w-4" />
-            Prompt Genealogy
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-[400px] w-full" />
-        </CardContent>
-      </Card>
+      <div className="rounded-xl border border-border/40 bg-card/80 p-5">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <GitBranch className="h-4 w-4" />
+          Prompt Genealogy
+        </div>
+        <Skeleton className="mt-3 h-[500px] w-full rounded-lg" />
+      </div>
     );
   }
 
   if (!prompts || prompts.length === 0) return null;
 
+  const generations = new Set(prompts.map((p) => p.generation));
+
   return (
     <>
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-base">
+      <div className="rounded-xl border border-border/40 bg-card/80">
+        <div className="flex flex-col gap-2 px-5 pt-4 pb-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <GitBranch className="h-4 w-4" />
               Prompt Genealogy
-            </CardTitle>
-            <div className="flex flex-wrap gap-3">
-              {[
-                { label: "Seed", color: "bg-blue-500", icon: <Sparkles className="h-3 w-3" /> },
-                { label: "Crossover", color: "bg-purple-500", icon: <Shuffle className="h-3 w-3" /> },
-                { label: "Mutation", color: "bg-orange-500", icon: <Dna className="h-3 w-3" /> },
-                { label: "Elite", color: "bg-yellow-500", icon: <Star className="h-3 w-3" /> },
-              ].map(({ label, color }) => (
-                <div key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className={`inline-block w-2.5 h-2.5 rounded-full ${color}`} />
-                  {label}
-                </div>
-              ))}
-            </div>
+            </h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {prompts.length} prompts across {generations.size} generations. Click a node to inspect.
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Select a node to inspect the prompt. Drag to pan. Scroll to zoom.
-          </p>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="h-[500px] w-full">
-            <ReactFlowProvider>
-              <GenealogyFlowInner prompts={prompts} onNodeClick={setSelectedPrompt} />
-            </ReactFlowProvider>
+          <div className="flex flex-wrap items-center gap-3">
+            {([
+              { label: "Seed", color: "bg-blue-500" },
+              { label: "Crossover", color: "bg-purple-500" },
+              { label: "Mutation", color: "bg-orange-500" },
+              { label: "Elite", color: "bg-yellow-500" },
+            ] as const).map(({ label, color }) => (
+              <div key={label} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span className={cn("inline-block h-2 w-2 rounded-full", color)} />
+                {label}
+              </div>
+            ))}
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Full prompt dialog */}
+        <div className="h-[600px] w-full border-t border-border/30">
+          <ReactFlowProvider>
+            <GenealogyFlowInner prompts={prompts} onNodeClick={setSelectedPrompt} />
+          </ReactFlowProvider>
+        </div>
+      </div>
+
       <Dialog open={!!selectedPrompt} onOpenChange={(open) => !open && setSelectedPrompt(null)}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           {selectedPrompt && (
             <>
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 flex-wrap">
+                <DialogTitle className="flex items-center gap-2 flex-wrap text-base">
                   {originIcon(selectedPrompt.origin)}
                   {originLabel(selectedPrompt.origin)}
-                  <Badge variant="secondary" className="ml-1">
+                  <Badge variant="secondary" className="text-xs">
                     Gen {selectedPrompt.generation}
                   </Badge>
                   <Badge
                     variant="outline"
-                    className={fitnessColor(selectedPrompt.fitness ?? 0)}
+                    className={cn("text-xs", fitnessColor(selectedPrompt.fitness ?? 0))}
                   >
-                    Fitness: {((selectedPrompt.fitness ?? 0) * 100).toFixed(1)}%
+                    {((selectedPrompt.fitness ?? 0) * 100).toFixed(1)}%
                   </Badge>
                 </DialogTitle>
               </DialogHeader>
@@ -396,12 +393,9 @@ export function GenealogyDag({ runId }: { runId: string }) {
                     variant="outline"
                     size="sm"
                     onClick={() => handleCopy(selectedPrompt.text)}
+                    className="gap-1.5"
                   >
-                    {copied ? (
-                      <><Check className="h-3.5 w-3.5 mr-1" /> Copied</>
-                    ) : (
-                      <><Copy className="h-3.5 w-3.5 mr-1" /> Copy</>
-                    )}
+                    {copied ? <><Check className="h-3.5 w-3.5" /> Copied</> : <><Copy className="h-3.5 w-3.5" /> Copy</>}
                   </Button>
                 </div>
                 <pre className="text-sm whitespace-pre-wrap font-mono bg-muted/50 rounded-lg p-4 leading-relaxed">

@@ -88,15 +88,54 @@ export function FitnessChart({ data }: FitnessChartProps) {
               width={45}
             />
             <Tooltip
-              contentStyle={{
-                backgroundColor: "var(--color-card)",
-                border: "1px solid var(--color-border)",
-                borderRadius: "12px",
-                fontSize: "12px",
-                padding: "8px 12px",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                return (
+                  <div
+                    style={{
+                      backgroundColor: "var(--color-card)",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: "12px",
+                      fontSize: "12px",
+                      padding: "10px 14px",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                      minWidth: "140px",
+                    }}
+                  >
+                    <p style={{ fontWeight: 600, marginBottom: "6px", fontSize: "11px", opacity: 0.5 }}>
+                      Generation {label}
+                    </p>
+                    {payload.map((entry) => (
+                      <div
+                        key={entry.dataKey}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: "12px",
+                          padding: "2px 0",
+                        }}
+                      >
+                        <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span
+                            style={{
+                              width: "8px",
+                              height: "8px",
+                              borderRadius: "50%",
+                              backgroundColor: entry.color,
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span style={{ opacity: 0.7 }}>{entry.name}</span>
+                        </span>
+                        <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+                          {entry.value}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                );
               }}
-              formatter={(value) => [`${value}%`]}
             />
             <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
             <Line
@@ -110,10 +149,10 @@ export function FitnessChart({ data }: FitnessChartProps) {
             <Line
               type="monotone"
               dataKey="Mean"
-              stroke="oklch(0.62 0.17 52)"
+              stroke="oklch(0.55 0.15 250)"
               strokeWidth={1.5}
               strokeDasharray="5 5"
-              dot={{ r: 3, fill: "oklch(0.62 0.17 52)", strokeWidth: 0 }}
+              dot={{ r: 3, fill: "oklch(0.55 0.15 250)", strokeWidth: 0 }}
             />
             <Line
               type="monotone"
