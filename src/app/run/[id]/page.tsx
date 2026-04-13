@@ -144,14 +144,16 @@ export default function RunPage({
           Dashboard
         </Link>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {statusBadge(status)}
-          {connectionStatus === "disconnected" && !isTerminal && (
-            <Badge variant="outline" className="border-warning/20 bg-warning/8 text-warning">
-              <WifiOff className="h-3 w-3" /> Disconnected
-            </Badge>
-          )}
-        </div>
+        {!isTerminal && (
+          <div className="flex flex-wrap items-center gap-2">
+            {statusBadge(status)}
+            {connectionStatus === "disconnected" && (
+              <Badge variant="outline" className="border-warning/20 bg-warning/8 text-warning">
+                <WifiOff className="h-3 w-3" /> Disconnected
+              </Badge>
+            )}
+          </div>
+        )}
 
         <h1 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">
           {runHeading}
@@ -189,17 +191,26 @@ export default function RunPage({
         </div>
       </div>
 
-      {/* Run controls */}
-      <div className="rounded-xl border border-border/40 bg-card/80 px-5 py-4">
-        <RunControls
-          runId={id}
-          status={status}
-          stopReason={stopReason}
-          errorMessage={errorMessage}
-        />
-      </div>
+      {/* Run controls — only shown during active runs */}
+      {!isTerminal && (
+        <div className="rounded-xl border border-border/40 bg-card/80 px-5 py-4">
+          <RunControls
+            runId={id}
+            status={status}
+            stopReason={stopReason}
+            errorMessage={errorMessage}
+          />
+        </div>
+      )}
 
       {/* Alerts */}
+      {isTerminal && errorMessage && (
+        <div className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          {errorMessage}
+        </div>
+      )}
+
       {connectionStatus === "disconnected" && !isTerminal && (
         <div className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-warning-foreground">
           <WifiOff className="h-4 w-4 shrink-0" />
@@ -267,7 +278,7 @@ export default function RunPage({
       {/* Bottom sections */}
       {(isTerminal || generationSummaries.length > 0) && (
         <motion.div variants={fadeIn} initial="hidden" animate="visible" custom={5}>
-          <GenealogyDag runId={id} />
+          <GenealogyDag runId={id} currentGeneration={currentGeneration} />
         </motion.div>
       )}
 

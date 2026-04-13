@@ -40,7 +40,7 @@ export function OriginalPrompt({
           <Badge variant="outline" className="text-[11px] mb-2">
             Task context
           </Badge>
-          <p className="text-sm text-muted-foreground leading-relaxed">
+          <p className="text-sm text-muted-foreground leading-relaxed bg-muted/40 rounded-xl p-3 max-h-40 overflow-y-auto border border-border/50">
             {taskDescription}
           </p>
         </div>

@@ -260,8 +260,13 @@ function GenealogyFlowInner({
     return { initialNodes: laid.nodes, initialEdges: laid.edges };
   }, [prompts, bestId]);
 
-  const [nodes, , onNodesChange] = useNodesState(initialNodes);
-  const [edges, , onEdgesChange] = useEdgesState(initialEdges);
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  useEffect(() => {
+    setNodes(initialNodes);
+    setEdges(initialEdges);
+  }, [initialNodes, initialEdges, setNodes, setEdges]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
@@ -296,19 +301,21 @@ function GenealogyFlowInner({
 
 // ─── Main Export ───
 
-export function GenealogyDag({ runId }: { runId: string }) {
+export function GenealogyDag({ runId, currentGeneration }: { runId: string; currentGeneration?: number }) {
   const [prompts, setPrompts] = useState<Prompt[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    const isInitial = prompts === null;
+    if (isInitial) setLoading(true);
     fetch(`/api/evolution/${runId}`)
       .then((r) => r.json())
       .then((data) => setPrompts(data.prompts ?? []))
-      .catch(() => setPrompts([]))
-      .finally(() => setLoading(false));
-  }, [runId]);
+      .catch(() => { if (isInitial) setPrompts([]); })
+      .finally(() => { if (isInitial) setLoading(false); });
+  }, [runId, currentGeneration]);
 
   const handleCopy = async (text: string) => {
     await navigator.clipboard.writeText(text);

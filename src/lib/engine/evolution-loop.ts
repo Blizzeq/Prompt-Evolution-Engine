@@ -73,6 +73,7 @@ export class EvolutionEngine {
       const fitnessHistory: GenerationSummary[] = [];
       let bestEverPrompt: Prompt | null = null;
       let noImprovementCount = 0;
+      let currentMutationRate = this.config.mutationRate;
 
       for (let gen = 1; gen <= this.config.generations; gen++) {
         if (this.aborted) {
@@ -97,6 +98,15 @@ export class EvolutionEngine {
         });
 
         // ── Step 1: Evaluate fitness (parallel for cloud, sequential for Ollama) ──
+        // Re-evaluate elites every other generation to combat lucky scores
+        const shouldReEvalElites = gen > 1 && gen % 2 === 0;
+        if (shouldReEvalElites) {
+          for (const p of population) {
+            if (p.origin.type === "elite") {
+              p.fitness = null;
+            }
+          }
+        }
         const unevaluated = population.filter((p) => p.fitness === null);
         let evaluated = 0;
 
@@ -167,12 +177,19 @@ export class EvolutionEngine {
 
         this.emit({ type: "generation:complete", generation: gen, summary });
 
-        // ── Step 4: Track best ever ──
+        // ── Step 4: Track best ever + adaptive mutation ──
         if (!bestEverPrompt || summary.bestFitness > (bestEverPrompt.fitness ?? 0)) {
           bestEverPrompt = { ...summary.bestPrompt };
           noImprovementCount = 0;
+          // Reset mutation rate on improvement
+          currentMutationRate = this.config.mutationRate;
         } else {
           noImprovementCount++;
+          // Boost mutation rate when stagnating (max 0.7)
+          currentMutationRate = Math.min(
+            0.7,
+            this.config.mutationRate + noImprovementCount * 0.15,
+          );
         }
 
         // ── Step 5: Early stopping ──
@@ -210,6 +227,7 @@ export class EvolutionEngine {
           runId,
           run.taskDescription,
           gen,
+          currentMutationRate,
         );
 
         population = nextGeneration;
@@ -312,6 +330,7 @@ export class EvolutionEngine {
     runId: string,
     taskDescription: string,
     currentGen: number,
+    mutationRate?: number,
   ): Promise<Prompt[]> {
     const nextGen: Prompt[] = [];
 
@@ -335,8 +354,9 @@ export class EvolutionEngine {
     const remaining = this.config.populationSize - this.config.eliteCount;
 
     // Pre-compute parent selections and mutation types (sync operations)
+    const effectiveMutationRate = mutationRate ?? this.config.mutationRate;
     const offspringPlans = Array.from({ length: remaining }, () => {
-      const doCrossover = Math.random() > this.config.mutationRate;
+      const doCrossover = Math.random() > effectiveMutationRate;
       if (doCrossover) {
         const [parent1, parent2] = tournamentSelect(population, 2);
         return { type: "crossover" as const, parent1, parent2 };

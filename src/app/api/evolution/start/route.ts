@@ -76,7 +76,7 @@ export async function POST(request: Request) {
       evalMethod: userConfig.evalMethod ?? "llm-judge",
       modelId: userConfig.modelId ?? defaultModelId,
       provider,
-      crossoverStrategy: userConfig.crossoverStrategy ?? "simple",
+      crossoverStrategy: userConfig.crossoverStrategy ?? "section-aware",
       mutationStrategies: userConfig.mutationStrategies ?? [...ALL_MUTATION_STRATEGIES],
       fitnessThreshold: userConfig.fitnessThreshold ?? 0.99,
       earlyStopGenerations: userConfig.earlyStopGenerations ?? 3,

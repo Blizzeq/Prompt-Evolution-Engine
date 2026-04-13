@@ -9,15 +9,15 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "border-primary/20 bg-primary text-primary-foreground shadow-[0_20px_45px_-20px_rgba(17,186,157,0.58)] hover:-translate-y-0.5 hover:bg-primary/92 hover:shadow-[0_24px_60px_-24px_rgba(17,186,157,0.62)]",
+          "border-primary/20 bg-primary text-primary-foreground shadow-[0_20px_45px_-20px_rgba(17,186,157,0.58)] hover:bg-primary/92 hover:shadow-[0_24px_60px_-24px_rgba(17,186,157,0.62)]",
         outline:
-          "border-white/16 bg-white/[0.62] text-foreground shadow-[0_18px_40px_-30px_rgba(20,24,37,0.28)] hover:-translate-y-0.5 hover:bg-white/[0.82] aria-expanded:bg-white/[0.82] dark:border-white/8 dark:bg-white/[0.05] dark:hover:bg-white/[0.1] dark:aria-expanded:bg-white/[0.1]",
+          "border-white/16 bg-white/[0.62] text-foreground shadow-[0_18px_40px_-30px_rgba(20,24,37,0.28)] hover:bg-white/[0.82] aria-expanded:bg-white/[0.82] dark:border-white/8 dark:bg-white/[0.05] dark:hover:bg-white/[0.1] dark:aria-expanded:bg-white/[0.1]",
         secondary:
-          "border-secondary/15 bg-secondary/75 text-secondary-foreground hover:-translate-y-0.5 hover:bg-secondary/88 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+          "border-secondary/15 bg-secondary/75 text-secondary-foreground hover:bg-secondary/88 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
           "border-transparent bg-transparent text-muted-foreground hover:bg-white/[0.08] hover:text-foreground aria-expanded:bg-white/[0.08] aria-expanded:text-foreground dark:hover:bg-white/[0.06] dark:aria-expanded:bg-white/[0.06]",
         destructive:
-          "border-destructive/25 bg-destructive text-white shadow-[0_20px_48px_-24px_rgba(220,38,38,0.6)] hover:-translate-y-0.5 hover:bg-destructive/92 focus-visible:border-destructive/45 focus-visible:ring-destructive/18 dark:focus-visible:ring-destructive/35",
+          "border-destructive/25 bg-destructive text-white shadow-[0_20px_48px_-24px_rgba(220,38,38,0.6)] hover:bg-destructive/92 focus-visible:border-destructive/45 focus-visible:ring-destructive/18 dark:focus-visible:ring-destructive/35",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

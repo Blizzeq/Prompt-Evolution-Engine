@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, type Variants } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -22,7 +23,16 @@ import {
   ProviderSelector,
   type ProviderConfig,
 } from "@/components/config/provider-selector";
-import { Loader2, Play, Settings2, Wand2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff,
+  Loader2,
+  Play,
+  Settings2,
+  Wand2,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { TaskPreset, MutationType } from "@/lib/engine/types";
 import { cn } from "@/lib/utils";
@@ -61,6 +71,134 @@ const DEFAULT_PROVIDER: ProviderConfig = {
   ollamaNumGpuLayers: 30,
 };
 
+// ─── Prompt builder fields ───
+
+interface PromptFields {
+  persona: string;
+  task: string;
+  steps: string;
+  context: string;
+  goal: string;
+  format: string;
+}
+
+const EMPTY_FIELDS: PromptFields = {
+  persona: "",
+  task: "",
+  steps: "",
+  context: "",
+  goal: "",
+  format: "",
+};
+
+const FIELD_META: {
+  key: keyof PromptFields;
+  label: string;
+  hint: string;
+  placeholder: string;
+  rows: number;
+  required: boolean;
+}[] = [
+  {
+    key: "persona",
+    label: "Persona",
+    hint: "Who should the AI act as? The more specific the role, the better the output quality.",
+    placeholder: "e.g. You are an experienced nutritionist specializing in meal planning for athletes.",
+    rows: 2,
+    required: true,
+  },
+  {
+    key: "task",
+    label: "Task",
+    hint: "What is the core task? State clearly what the AI needs to produce.",
+    placeholder: "e.g. Create a weekly meal plan optimized for muscle recovery after training.",
+    rows: 2,
+    required: true,
+  },
+  {
+    key: "steps",
+    label: "Steps",
+    hint: "Break down how to complete the task. Number your steps to enforce a logical order.",
+    placeholder: "e.g.\n1. Assess caloric needs based on training intensity\n2. Distribute macros across 5 meals\n3. Include pre- and post-workout nutrition timing",
+    rows: 4,
+    required: false,
+  },
+  {
+    key: "context",
+    label: "Context & constraints",
+    hint: "Background info, rules, or limitations the AI must follow. Include user details if relevant.",
+    placeholder: "e.g. The user will provide their weight, training schedule, and dietary restrictions. Prioritize whole foods over supplements. Budget-friendly options preferred. No more than 30 min prep per meal.",
+    rows: 3,
+    required: true,
+  },
+  {
+    key: "goal",
+    label: "Goal",
+    hint: "What is the desired outcome? What should the user walk away with?",
+    placeholder: "e.g. The user gets a complete shopping list and day-by-day meal schedule they can follow immediately.",
+    rows: 2,
+    required: false,
+  },
+  {
+    key: "format",
+    label: "Output format",
+    hint: "How should the response be structured? Tables, bullet points, sections, length?",
+    placeholder: "e.g. Table with columns: Meal, Ingredients, Calories, Protein (g), Prep Time. One table per day. Include a summary row with daily totals.",
+    rows: 2,
+    required: false,
+  },
+];
+
+/** Build a combined prompt from the 6 structured fields. */
+function buildPromptFromFields(fields: PromptFields): string {
+  const parts: string[] = [];
+
+  if (fields.persona.trim()) {
+    parts.push(fields.persona.trim());
+  }
+
+  if (fields.task.trim()) {
+    parts.push(fields.task.trim());
+  }
+
+  if (fields.steps.trim()) {
+    parts.push(fields.steps.trim());
+  }
+
+  if (fields.context.trim()) {
+    parts.push(fields.context.trim());
+  }
+
+  if (fields.goal.trim()) {
+    parts.push(fields.goal.trim());
+  }
+
+  if (fields.format.trim()) {
+    parts.push(fields.format.trim());
+  }
+
+  parts.push("{input}");
+
+  return parts.join("\n\n");
+}
+
+/** Build the task description from fields for evaluation context. */
+function buildTaskDescription(fields: PromptFields): string {
+  const parts: string[] = [];
+
+  if (fields.task.trim()) {
+    parts.push(fields.task.trim());
+  }
+  if (fields.context.trim()) {
+    parts.push(fields.context.trim());
+  }
+  if (fields.goal.trim()) {
+    parts.push(fields.goal.trim());
+  }
+
+  return parts.join(". ");
+}
+
 function estimateApiCalls(
   popSize: number,
   generations: number,
@@ -92,11 +230,13 @@ export default function NewRunPage() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("quick");
 
-  const [userPrompt, setUserPrompt] = useState("");
-  const [context, setContext] = useState("");
+  // Quick mode — structured fields
+  const [fields, setFields] = useState<PromptFields>(EMPTY_FIELDS);
+  const [showPreview, setShowPreview] = useState(false);
   const [quickGenerations, setQuickGenerations] = useState(5);
   const [quickPopulationSize, setQuickPopulationSize] = useState(6);
 
+  // Advanced mode
   const [presets, setPresets] = useState<TaskPreset[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [taskDescription, setTaskDescription] = useState("");
@@ -136,12 +276,19 @@ export default function NewRunPage() {
     setErrors({});
   };
 
+  const updateField = (key: keyof PromptFields, value: string) => {
+    setFields((prev) => ({ ...prev, [key]: value }));
+    setErrors((prev) => ({ ...prev, [key]: "" }));
+  };
+
   const validateQuick = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (userPrompt.length < 5)
-      newErrors.prompt = "Enter a prompt to optimize (at least 5 characters)";
-    if (context.length < 10)
-      newErrors.context = "Describe what the prompt should do (at least 10 characters)";
+    if (fields.persona.trim().length < 5)
+      newErrors.persona = "Describe who the AI should act as (at least 5 characters)";
+    if (fields.task.trim().length < 5)
+      newErrors.task = "Describe the core task (at least 5 characters)";
+    if (fields.context.trim().length < 5)
+      newErrors.context = "Add context or constraints (at least 5 characters)";
     if (provider.provider !== "ollama" && !provider.apiKey.trim())
       newErrors.provider = "API key is required for cloud providers";
     setErrors(newErrors);
@@ -176,7 +323,7 @@ export default function NewRunPage() {
 
   const handleSubmit = async () => {
     if (mode === "quick" && !validateQuick()) {
-      toast.error("Fix the highlighted fields before starting the run");
+      toast.error("Fill in the required fields before starting");
       return;
     }
     if (mode === "advanced" && !validateAdvanced()) {
@@ -187,6 +334,8 @@ export default function NewRunPage() {
     try {
       let body: Record<string, unknown>;
       if (mode === "quick") {
+        const userPrompt = buildPromptFromFields(fields);
+        const context = buildTaskDescription(fields);
         body = {
           mode: "quick",
           userPrompt,
@@ -225,7 +374,7 @@ export default function NewRunPage() {
         return;
       }
       if (data.testCasesPending) {
-        toast.success("Run started. Test cases are being generated in the background.");
+        toast.success("Run started. Test cases are being generated.");
       } else {
         toast.success("Run started.");
       }
@@ -240,6 +389,11 @@ export default function NewRunPage() {
     mode === "quick"
       ? estimateApiCalls(quickPopulationSize, quickGenerations, provider.provider)
       : estimateApiCalls(config.populationSize, config.generations, provider.provider);
+
+  const builtPrompt = buildPromptFromFields(fields);
+  const filledCount = FIELD_META.filter(
+    (f) => fields[f.key].trim().length > 0
+  ).length;
 
   return (
     <motion.div
@@ -282,46 +436,96 @@ export default function NewRunPage() {
             animate="visible"
             exit="exit"
           >
-            {/* Prompt */}
-            <div className="rounded-xl border border-border/40 bg-card/80 p-5">
-              <Label className="text-sm font-medium">Prompt</Label>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Paste the prompt you want to optimize.
-              </p>
-              <Textarea
-                value={userPrompt}
-                onChange={(e) => {
-                  setUserPrompt(e.target.value);
-                  setErrors((prev) => ({ ...prev, prompt: "" }));
-                }}
-                placeholder={`Enter the prompt you want to optimize...\n\nExample: You are a helpful assistant that classifies text sentiment.\n\nText: {input}\nSentiment:`}
-                rows={5}
-                className="mt-3 font-mono text-sm resize-none"
-              />
-              {errors.prompt && (
-                <p className="mt-2 text-xs text-destructive">{errors.prompt}</p>
-              )}
+            {/* Structured prompt fields */}
+            <div className="space-y-3">
+              {FIELD_META.map((meta, i) => (
+                <motion.div
+                  key={meta.key}
+                  className="rounded-xl border border-border/40 bg-card/80 p-5"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.04, duration: 0.2 }}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <Label className="text-sm font-medium">
+                        <span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-md bg-primary/10 text-[10px] font-bold text-primary">
+                          {i + 1}
+                        </span>
+                        {meta.label}
+                        {meta.required && (
+                          <span className="ml-1 text-destructive">*</span>
+                        )}
+                      </Label>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        {meta.hint}
+                      </p>
+                    </div>
+                    {fields[meta.key].trim() && (
+                      <span className="shrink-0 rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">
+                        Done
+                      </span>
+                    )}
+                  </div>
+                  <Textarea
+                    value={fields[meta.key]}
+                    onChange={(e) => updateField(meta.key, e.target.value)}
+                    placeholder={meta.placeholder}
+                    rows={meta.rows}
+                    className="mt-3 resize-none text-sm"
+                  />
+                  {errors[meta.key] && (
+                    <p className="mt-2 text-xs text-destructive">
+                      {errors[meta.key]}
+                    </p>
+                  )}
+                </motion.div>
+              ))}
             </div>
 
-            {/* Context */}
-            <div className="rounded-xl border border-border/40 bg-card/80 p-5">
-              <Label className="text-sm font-medium">Context</Label>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Goals, constraints, audience, or output rules.
-              </p>
-              <Textarea
-                value={context}
-                onChange={(e) => {
-                  setContext(e.target.value);
-                  setErrors((prev) => ({ ...prev, context: "" }));
-                }}
-                placeholder="Describe what the prompt should do, its goals, and any constraints..."
-                rows={3}
-                className="mt-3 resize-none"
-              />
-              {errors.context && (
-                <p className="mt-2 text-xs text-destructive">{errors.context}</p>
-              )}
+            {/* Prompt preview */}
+            <div className="rounded-xl border border-border/40 bg-card/80">
+              <button
+                type="button"
+                onClick={() => setShowPreview(!showPreview)}
+                className="flex w-full items-center justify-between px-5 py-3.5 text-left"
+              >
+                <div className="flex items-center gap-2">
+                  {showPreview ? (
+                    <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                  )}
+                  <span className="text-sm font-medium">
+                    Preview built prompt
+                  </span>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    {filledCount}/6 sections
+                  </span>
+                </div>
+                {showPreview ? (
+                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                )}
+              </button>
+              <AnimatePresence>
+                {showPreview && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="border-t border-border/30 px-5 py-4">
+                      <pre className="whitespace-pre-wrap rounded-lg bg-muted/50 p-4 font-mono text-xs leading-relaxed text-muted-foreground">
+                        {builtPrompt || "Fill in the fields above to see the combined prompt..."}
+                      </pre>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Tuning */}
