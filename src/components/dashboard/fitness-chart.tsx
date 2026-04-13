@@ -107,7 +107,7 @@ export function FitnessChart({ data }: FitnessChartProps) {
                     </p>
                     {payload.map((entry) => (
                       <div
-                        key={entry.dataKey}
+                        key={String(entry.dataKey)}
                         style={{
                           display: "flex",
                           alignItems: "center",
