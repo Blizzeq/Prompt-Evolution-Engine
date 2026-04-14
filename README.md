@@ -85,6 +85,8 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+The SQLite database is created automatically at `./data/evolution.sqlite` by default. Override it with `DB_PATH` in `.env.local` if needed.
+
 ### Using Ollama (local, recommended)
 
 ```bash

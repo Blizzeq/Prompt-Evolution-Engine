@@ -4,7 +4,7 @@ import * as schema from "./schema";
 import path from "path";
 import fs from "node:fs";
 
-const DB_PATH = path.join(process.cwd(), "data", "evolution.sqlite");
+const DB_PATH = path.resolve(process.cwd(), process.env.DB_PATH ?? "./data/evolution.sqlite");
 
 function createDatabase() {
   const dir = path.dirname(DB_PATH);
