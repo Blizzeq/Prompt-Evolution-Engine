@@ -68,7 +68,7 @@ Next.js 16 | React 19 | TypeScript | Tailwind CSS 4 | shadcn/ui | SQLite + Drizz
 ### Prerequisites
 
 - Node.js 20+
-- pnpm
+- npm
 - [Ollama](https://ollama.com) (for local inference) or a Google AI Studio / OpenRouter API key
 
 ### Setup
@@ -77,10 +77,10 @@ Next.js 16 | React 19 | TypeScript | Tailwind CSS 4 | shadcn/ui | SQLite + Drizz
 git clone https://github.com/Blizzeq/Prompt-Evolution-Engine.git
 cd Prompt-Evolution-Engine
 
-pnpm install
+npm install
 cp .env.local.example .env.local   # configure your provider
-pnpm drizzle-kit migrate
-pnpm dev
+npx drizzle-kit migrate
+npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
